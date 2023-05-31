@@ -18,7 +18,7 @@ MODULE random_generator
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: random, random_init, get_random_state, set_random_state
-  PUBLIC :: random_box_muller, random_state_type, random_flush_cache
+  PUBLIC :: random_box_muller, random_poisson, random_state_type, random_flush_cache
 
   INTEGER, PARAMETER :: init_x = 123456789
   INTEGER, PARAMETER :: init_y = 362436069
