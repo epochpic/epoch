@@ -587,6 +587,7 @@ MODULE shared_data
   INTEGER :: n_photon, n_pair
   INTEGER :: n_sample_epsilon, n_sample_chi2, n_sample_h
   INTEGER :: n_sample_eta, n_sample_chi, n_sample_t
+  REAL(num) :: pair_upscaling = 1.0_num ! C. Arran: Scale rate of pair production
 
   ! These track which species should be the species used by the QED routines
   INTEGER :: photon_species = -1, trident_electron_species = -1

@@ -680,10 +680,10 @@ CONTAINS
 
           ! Draw the number of events from the Poisson distribution and generate pair with correct weight
           lambda = delta_optical_depth_photon(chi_val, part_e)
-          pair_weight = random_poisson(lambda * current%weight)
+          pair_weight = random_poisson(lambda * current%weight * pair_upscaling)
           IF (pair_weight > 0) THEN
             CALL generate_weighted_pair(current, chi_val, photon_species, &
-                breit_wheeler_electron_species, breit_wheeler_positron_species, pair_weight)
+                breit_wheeler_electron_species, breit_wheeler_positron_species, pair_weight / pair_upscaling)
           END IF
           current => next_pt
         END DO
@@ -1094,8 +1094,8 @@ CONTAINS
     ! Generates a pair moving in same direction as photon with a weight less than that of the generating photon
     ! C. Arran 2023
     TYPE(particle), POINTER :: generating_photon
-    REAL(num), INTENT(IN) :: chi_val
-    INTEGER, INTENT(IN) :: iphoton, ielectron, ipositron, pair_weight
+    REAL(num), INTENT(IN) :: chi_val, pair_weight
+    INTEGER, INTENT(IN) :: iphoton, ielectron, ipositron
     REAL(num) :: dir_x, dir_y, dir_z, mag_p
     REAL(num) :: probability_split, epsilon_frac, norm
     TYPE(particle), POINTER :: new_electron, new_positron
