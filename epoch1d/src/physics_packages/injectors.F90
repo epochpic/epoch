@@ -308,6 +308,13 @@ CONTAINS
       density = MIN(density, injector%density_max)
       new%weight = weight_fac * density
 #endif
+#if defined(PHOTONS) || defined(BREMSSTRAHLUNG)
+      ! For photons, assign additional variable used in photon particle-push
+      IF (species_list(injector%species)%species_type == c_species_id_photon) &
+          THEN 
+        new%particle_energy = SQRT(SUM(new%part_p**2)) * c
+      END IF
+#endif
       CALL add_particle_to_partlist(plist, new)
     END DO
 
