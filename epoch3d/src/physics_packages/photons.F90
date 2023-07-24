@@ -610,6 +610,94 @@ CONTAINS
 
 
 
+  SUBROUTINE qed_update_poisson
+
+    ! Updates the optical depth for electrons and runs Poisson sampling for photons
+    ! C. Arran 2023
+    INTEGER :: ispecies
+    TYPE(particle), POINTER :: current, next_pt
+
+    REAL(num) :: part_x
+    REAL(num) :: part_ux, part_uy, part_uz
+    REAL(num) :: dir_x, dir_y, dir_z
+    REAL(num) :: eta, chi_val, part_e, gamma_rel, norm
+    REAL(num) :: lambda
+    INTEGER :: pair_weight
+
+    DO ispecies = 1, n_species
+
+      ! First consider electrons and positrons
+      IF (species_list(ispecies)%species_type == c_species_id_electron &
+          .OR. species_list(ispecies)%species_type == c_species_id_positron) &
+          THEN
+        current => species_list(ispecies)%attached_list%head
+        DO WHILE(ASSOCIATED(current))
+          ! Find eta at particle position
+          part_x  = current%part_pos - x_grid_min_local
+          part_ux = current%part_p(1) / mc0
+          part_uy = current%part_p(2) / mc0
+          part_uz = current%part_p(3) / mc0
+          gamma_rel = SQRT(part_ux**2 + part_uy**2 + part_uz**2 + 1.0_num)
+
+          eta = calculate_eta(part_x, part_ux, part_uy, &
+              part_uz, gamma_rel)
+
+          current%optical_depth = &
+              current%optical_depth - delta_optical_depth(eta, gamma_rel)
+#ifdef TRIDENT_PHOTONS
+          current%optical_depth_tri = current%optical_depth_tri &
+              - delta_optical_depth_tri(eta, gamma_rel)
+#endif
+          ! If optical depth dropped below zero generate photon...
+          IF (current%optical_depth <= 0.0_num) THEN
+            CALL generate_photon(current, photon_species, eta)
+            ! ... and reset optical depth
+            current%optical_depth = reset_optical_depth()
+          END IF
+
+#ifdef TRIDENT_PHOTONS
+          IF (current%optical_depth_tri <= 0.0_num) THEN
+            CALL generate_pair_tri(current, trident_electron_species, &
+                trident_positron_species)
+            ! ... and reset optical depth
+            current%optical_depth_tri = reset_optical_depth()
+          END IF
+#endif
+          current => current%next
+        END DO
+
+      ! and finally photons
+      ELSE IF (species_list(ispecies)%species_type == c_species_id_photon &
+          .AND. produce_pairs) THEN
+        current => species_list(ispecies)%attached_list%head
+        DO WHILE(ASSOCIATED(current))
+          ! Current may be deleted
+          next_pt => current%next
+          part_x  = current%part_pos - x_grid_min_local
+          norm  = c / current%particle_energy
+          dir_x = current%part_p(1) * norm
+          dir_y = current%part_p(2) * norm
+          dir_z = current%part_p(3) * norm
+          part_e  = current%particle_energy / m0 / c**2
+          chi_val = calculate_chi(part_x, dir_x, dir_y, &
+              dir_z, part_e)
+
+          ! Draw the number of events from the Poisson distribution and generate pair with correct weight
+          lambda = delta_optical_depth_photon(chi_val, part_e)
+          pair_weight = random_poisson(lambda * pair_upscaling)
+          IF (pair_weight > 0) THEN
+            CALL generate_weighted_pair(current, chi_val, photon_species, &
+                breit_wheeler_electron_species, breit_wheeler_positron_species, pair_weight / pair_upscaling)
+          END IF
+          current => next_pt
+        END DO
+      END IF
+    END DO
+
+  END SUBROUTINE qed_update_poisson
+
+
+
   FUNCTION delta_optical_depth(eta, gamma_rel)
 
     ! Function that calcualtes the change to the optical depth
@@ -1024,6 +1112,82 @@ CONTAINS
     DEALLOCATE(generating_photon)
 
   END SUBROUTINE generate_pair
+
+
+
+  SUBROUTINE generate_weighted_pair(generating_photon, chi_val, iphoton, ielectron, &
+      ipositron,pair_weight)
+
+    ! Generates a pair moving in same direction as photon with a weight less than that of the generating photon
+    ! C. Arran 2023
+    TYPE(particle), POINTER :: generating_photon
+    REAL(num), INTENT(IN) :: chi_val, pair_weight
+    INTEGER, INTENT(IN) :: iphoton, ielectron, ipositron
+    REAL(num) :: dir_x, dir_y, dir_z, mag_p
+    REAL(num) :: probability_split, epsilon_frac, norm
+    TYPE(particle), POINTER :: new_electron, new_positron
+
+    CALL create_particle(new_electron)
+    CALL create_particle(new_positron)
+
+    new_electron%part_pos = generating_photon%part_pos
+    new_positron%part_pos = generating_photon%part_pos
+
+    norm  = c / generating_photon%particle_energy
+    dir_x = generating_photon%part_p(1) * norm
+    dir_y = generating_photon%part_p(2) * norm
+    dir_z = generating_photon%part_p(3) * norm
+
+    ! Determine how to split the energy amoung e-/e+
+    ! IS CHI HERE SAME AS ROLAND'S? DEFINED BSinT/B_s
+
+    probability_split = random()
+
+    epsilon_frac = find_value_from_table(chi_val, probability_split, &
+        n_sample_chi2, n_sample_epsilon, log_chi2, epsilon_split, p_energy)
+
+    mag_p = MAX(generating_photon%particle_energy / c, c_tiny)
+
+    new_electron%part_p(1) = epsilon_frac * mag_p * dir_x
+    new_electron%part_p(2) = epsilon_frac * mag_p * dir_y
+    new_electron%part_p(3) = epsilon_frac * mag_p * dir_z
+
+    new_positron%part_p(1) = (1.0_num - epsilon_frac) * mag_p * dir_x
+    new_positron%part_p(2) = (1.0_num - epsilon_frac) * mag_p * dir_y
+    new_positron%part_p(3) = (1.0_num - epsilon_frac) * mag_p * dir_z
+
+    new_electron%optical_depth = reset_optical_depth()
+    new_positron%optical_depth = reset_optical_depth()
+
+#ifdef TRIDENT_PHOTONS
+    new_electron%optical_depth_tri = reset_optical_depth()
+    new_positron%optical_depth_tri = reset_optical_depth()
+#endif
+
+    IF (pair_weight < generating_photon%weight) THEN
+      new_electron%weight = pair_weight
+      new_positron%weight = pair_weight
+    ELSE
+      new_electron%weight = generating_photon%weight
+      new_positron%weight = generating_photon%weight
+    END IF
+
+    CALL add_particle_to_partlist(species_list(ielectron)%attached_list, &
+        new_electron)
+    CALL add_particle_to_partlist(species_list(ipositron)%attached_list, &
+        new_positron)
+
+    IF (pair_weight < generating_photon%weight) THEN
+    ! Reduce photon weight
+      generating_photon%weight = generating_photon%weight - pair_weight
+    ELSE
+    ! Remove photon
+      CALL remove_particle_from_partlist(species_list(iphoton)%attached_list, &
+        generating_photon)
+      DEALLOCATE(generating_photon)
+    END IF
+
+  END SUBROUTINE generate_weighted_pair
 
 
 

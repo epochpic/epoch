@@ -42,6 +42,7 @@ CONTAINS
       photon_energy_min = EPSILON(1.0_num)
       qed_start_time = 0.0_num
       produce_pairs = .FALSE.
+      pair_upscaling = 1.0_num
       use_radiation_reaction = .TRUE.
       produce_photons = .FALSE.
       photon_dynamics = .FALSE.
@@ -142,6 +143,11 @@ CONTAINS
 
     IF (str_cmp(element, 'produce_pairs')) THEN
       produce_pairs = as_logical_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'pair_upscaling')) THEN
+      pair_upscaling = as_real_print(value, element, errcode)
       RETURN
     END IF
 
