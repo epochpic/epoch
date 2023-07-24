@@ -680,7 +680,7 @@ CONTAINS
 
           ! Draw the number of events from the Poisson distribution and generate pair with correct weight
           lambda = delta_optical_depth_photon(chi_val, part_e)
-          pair_weight = random_poisson(lambda * current%weight * pair_upscaling)
+          pair_weight = random_poisson(lambda * pair_upscaling)
           IF (pair_weight > 0) THEN
             CALL generate_weighted_pair(current, chi_val, photon_species, &
                 breit_wheeler_electron_species, breit_wheeler_positron_species, pair_weight / pair_upscaling)
