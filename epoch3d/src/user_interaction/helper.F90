@@ -102,6 +102,7 @@ CONTAINS
 
     INTEGER :: ispecies, n
     TYPE(particle_species), POINTER :: species
+    TYPE(particle), POINTER :: current
     INTEGER :: i0, i1, iu, io
     TYPE(initial_condition_block), POINTER :: ic
 
@@ -153,6 +154,17 @@ CONTAINS
       ELSE IF (species%ic_df_type == c_ic_df_arbitrary) THEN
         CALL setup_particle_dist_fn(species, species_drift)
       END IF
+
+#if defined(PHOTONS) || defined(BREMSSTRAHLUNG)
+      ! For photons, assign additional variable used in photon particle-push
+      IF (species_list(ispecies)%species_type == c_species_id_photon) THEN 
+        current => species%attached_list%head 
+        DO WHILE (ASSOCIATED(current))
+          current%particle_energy = SQRT(SUM(current%part_p**2)) * c
+          current => current%next
+        END DO
+      END IF
+#endif
     END DO
 
     IF (pre_loading) RETURN
