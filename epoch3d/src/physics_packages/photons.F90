@@ -617,7 +617,7 @@ CONTAINS
     INTEGER :: ispecies
     TYPE(particle), POINTER :: current, next_pt
 
-    REAL(num) :: part_x
+    REAL(num) :: part_x, part_y, part_z
     REAL(num) :: part_ux, part_uy, part_uz
     REAL(num) :: dir_x, dir_y, dir_z
     REAL(num) :: eta, chi_val, part_e, gamma_rel, norm
@@ -633,13 +633,15 @@ CONTAINS
         current => species_list(ispecies)%attached_list%head
         DO WHILE(ASSOCIATED(current))
           ! Find eta at particle position
-          part_x  = current%part_pos - x_grid_min_local
+          part_x  = current%part_pos(1) - x_grid_min_local
+          part_y  = current%part_pos(2) - y_grid_min_local
+          part_z  = current%part_pos(3) - z_grid_min_local
           part_ux = current%part_p(1) / mc0
           part_uy = current%part_p(2) / mc0
           part_uz = current%part_p(3) / mc0
           gamma_rel = SQRT(part_ux**2 + part_uy**2 + part_uz**2 + 1.0_num)
 
-          eta = calculate_eta(part_x, part_ux, part_uy, &
+          eta = calculate_eta(part_x, part_y, part_z, part_ux, part_uy, &
               part_uz, gamma_rel)
 
           current%optical_depth = &
@@ -673,13 +675,15 @@ CONTAINS
         DO WHILE(ASSOCIATED(current))
           ! Current may be deleted
           next_pt => current%next
-          part_x  = current%part_pos - x_grid_min_local
+          part_x  = current%part_pos(1) - x_grid_min_local
+          part_y  = current%part_pos(2) - y_grid_min_local
+          part_z  = current%part_pos(3) - z_grid_min_local
           norm  = c / current%particle_energy
           dir_x = current%part_p(1) * norm
           dir_y = current%part_p(2) * norm
           dir_z = current%part_p(3) * norm
           part_e  = current%particle_energy / m0 / c**2
-          chi_val = calculate_chi(part_x, dir_x, dir_y, &
+          chi_val = calculate_chi(part_x, part_y, part_z, dir_x, dir_y, &
               dir_z, part_e)
 
           ! Draw the number of events from the Poisson distribution and generate pair with correct weight
