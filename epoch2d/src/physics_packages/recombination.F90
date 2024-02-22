@@ -1,0 +1,539 @@
+! Copyright (C) 2009-2021 University of Warwick
+!
+! This program is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with this program.  If not, see <http://www.gnu.org/licenses/>.
+!
+!-------------------------------------------------------------------------------
+!
+! This module contains subroutines used to calculate recombination, provided 
+! recombination tables have been provided for a given atomic number and charge
+! state.
+!
+! Here we consider di-electric recombination. The electron temperature in a cell
+! determines the di-electric recombination rate, which can be used to obtain a
+! recombination cross-section. Each electron in the cell has a chance of 
+! triggering recombination.
+
+MODULE recombination
+
+  USE calc_df
+  USE collisions
+  
+  IMPLICIT NONE
+
+  TYPE(interpolation_state), SAVE :: last_state
+
+CONTAINS
+
+  SUBROUTINE setup_recombination_tables
+
+    ! This subroutine extracts di-electric recombination rates from files as a
+    ! function of electron temperature, and saves them to the species in 1D 
+    ! arrays
+    !
+    ! Data is not known for recombination rates of each ion of each element, so
+    ! we must first check if the data is present. Switch recombination off in
+    ! ions where this is not known 
+
+    INTEGER :: ispecies, io, iu
+    INTEGER :: z_int, q_int, entries
+    CHARACTER(LEN=7) :: file_name
+    LOGICAL :: exists
+
+    ! Loop through all species which are set to recombine
+    DO ispecies = 1, n_species
+      IF (species_list(ispecies)%recombine) THEN
+        
+        use_recombination = .TRUE.
+        use_particle_lists = .TRUE.
+        species_list(ispecies)%make_secondary_list = .TRUE.
+        species_list(species_list(ispecies)%recombine_to_species) &
+            %make_secondary_list = .TRUE.
+
+        ! Data is in src/physics_packages/TABLES/recombination_rate/
+        ! Filename format Z.._Q.. where "." is replaced by atomic number and
+        ! initial charge-state
+        ! E.g. Gold recombination 69+ to 68+ is Z79_Q69
+        z_int = species_list(ispecies)%atomic_no
+        q_int = NINT(species_list(ispecies)%charge / q0)
+        WRITE(file_name, '(A1,I2.2,A1,A1,I2.2)') 'Z', z_int, '_', 'Q', &
+            q_int
+
+        ! Check if the data-file exists for the current ion species
+        INQUIRE(FILE=TRIM(physics_table_location)  // "/recombination_rate/"&
+            // file_name, EXIST=exists)
+
+        ! No data-file, so switch off recombination for this species, and skip
+        ! to the next species
+        IF (.NOT. exists) THEN
+          IF (rank == 0) THEN
+            PRINT*, 'No data present for recombination from ', &
+                TRIM(species_list(ispecies)%name)
+          END IF
+          species_list(ispecies)%recombine = .FALSE.
+          CYCLE
+        END IF
+
+        ! Attempt to read data file
+        ! File format consists of 3 lines:
+        ! Number of data-points
+        ! Array of electron temperatures in [K]
+        ! Array of recombination rates in [cm3/s]
+        OPEN(UNIT = lu, &
+            FILE = TRIM(physics_table_location)  // "/recombination_rate/"&
+            // file_name, &
+            STATUS = 'OLD')
+        
+        READ(lu,*) entries
+        species_list(ispecies)%recombine_array_size = entries
+
+        ALLOCATE(species_list(ispecies)%recombine_temp(entries))
+        ALLOCATE(species_list(ispecies)%recombine_rate(entries))
+
+        READ(lu,*) species_list(ispecies)%recombine_temp(:)
+        READ(lu,*) species_list(ispecies)%recombine_rate(:)
+
+        ! Convert recombination rates to SI units
+        species_list(ispecies)%recombine_rate = &
+            species_list(ispecies)%recombine_rate * 1.0e-6_num
+
+        CLOSE(lu)
+
+        IF (rank == 0) THEN
+          PRINT*, 'Successfully loaded data for recombination from ', &
+              TRIM(species_list(ispecies)%name)
+        END IF
+      END IF
+    END DO
+
+    ! If recombination is present, we must create secondary lists for e-
+    IF (use_recombination) THEN
+      DO ispecies = 1, n_species
+        IF (species_list(ispecies)%electron) &
+            species_list(ispecies)%make_secondary_list = .TRUE.
+      END DO
+    END IF
+
+  END SUBROUTINE setup_recombination_tables
+
+
+
+  SUBROUTINE run_recombination
+
+    ! This subroutine is called by the main PIC loop, and triggers the
+    ! recombination calculation. The species_list is cycled through to identify
+    ! pairs of valid electron and ion species which can recombine, and a
+    ! subroutine is called to sample the recombination. Ions are added to the 
+    ! correct species list, and electron macro-particles are removed
+
+    INTEGER :: ispecies, jspecies
+    INTEGER :: electron_species, ion_species, recombined_species
+    INTEGER(i8) :: ix, iy
+    TYPE(particle_list), POINTER :: p_list
+    TYPE(particle_list) :: list_i_recombined
+    LOGICAL :: i_is_ion, i_is_electron, calc_recombination
+
+    CALL create_empty_partlist(list_i_recombined)
+
+    ! Shuffle ion species lists ahead of calculation
+    DO ispecies = 1, n_species
+      IF (species_list(ispecies)%ionise .AND. .NOT. &
+          species_list(ispecies)%is_shuffled) THEN
+        DO iy = 1, ny
+        DO ix = 1, nx
+          p_list => species_list(ispecies)%secondary_list(ix,iy)
+          CALL shuffle_particle_list_random(p_list)
+        END DO ! ix
+        END DO ! iy
+        species_list(ispecies)%is_shuffled = .TRUE.
+      END IF
+    END DO
+
+    ! Loop over all species and extract the electron-ion pairs
+    DO ispecies = 1, n_species
+
+      ! Photons cannot recombine with ions
+      IF (species_list(ispecies)%species_type == c_species_id_photon) &
+          CYCLE
+
+      ! Variables to track the identity of species ispecies
+      i_is_ion = .FALSE.
+      i_is_electron = .FALSE.
+      IF (species_list(ispecies)%electron) THEN
+        ! Current species is an electron species
+        electron_species = ispecies
+        i_is_electron = .TRUE.
+      ELSE IF (species_list(ispecies)%recombine) THEN
+        ! Current species is an ion species which can recombine
+        ion_species = ispecies
+        i_is_ion = .TRUE.
+      ELSE
+        ! Skip species which are not involved in recombination
+        CYCLE
+      END IF
+
+      ! Loop over remaining species for recombination partners
+      DO jspecies = ispecies, n_species
+
+        ! Determine whether ispecies and jspecies are recombination partners
+        calc_recombination = .FALSE.
+        IF (species_list(jspecies)%electron .AND. i_is_ion) THEN
+          ! jspecies is an electron species which can recombine with ispecies
+          electron_species = jspecies
+          calc_recombination = .TRUE.
+        ELSE IF (species_list(jspecies)%recombine .AND. i_is_electron) THEN
+          ! jspecies can recombine with ispecies
+          ion_species = jspecies
+          calc_recombination = .TRUE.
+        ELSE
+          ! Skip species which don't form a recombination pair with ispecies
+          CYCLE
+        END IF
+
+        ! Get corresponding species ID for new list
+        recombined_species = species_list(ion_species)%recombine_to_species
+
+        ! Perform recombination for valid electron-ion pairs
+        DO iy = 1, ny
+        DO ix = 1, nx
+        IF (calc_recombination) THEN
+            ! Apply recombination, moving recombined ions to the new particle 
+            ! lists
+            CALL recombine_ei(ion_species, electron_species, &
+                species_list(electron_species)%secondary_list(ix,iy), &
+                species_list(ion_species)%secondary_list(ix,iy), &
+                list_i_recombined)
+
+            ! Shift recombined ions to the correct species
+            CALL append_partlist( &
+                species_list(recombined_species)%secondary_list(ix,iy), &
+                list_i_recombined)
+          END IF
+        END DO ! ix
+        END DO ! iy
+
+      END DO ! jspecies
+    END DO ! ispecies
+
+  END SUBROUTINE run_recombination
+
+
+
+  SUBROUTINE recombine_ei(ion_species, el_species, list_e_in, list_i_in, &
+      list_i_recombined)
+
+    INTEGER, INTENT(IN) :: ion_species, el_species
+    TYPE(particle_list), INTENT(INOUT) :: list_e_in, list_i_in
+    TYPE(particle_list), INTENT(INOUT) :: list_i_recombined
+    TYPE(particle), POINTER :: electron, ion
+    TYPE(particle), POINTER :: next_ion, next_electron
+    INTEGER(i8) :: e_count, ion_count, i_ion, i_el, recombined_count
+    LOGICAL, ALLOCATABLE :: e_recombined(:), i_recombined(:)
+    LOGICAL :: ion_at_rest
+    LOGICAL :: create_recombination, e_collide_again
+    REAL(num) :: sum_wi, n_i, inv_cell_volume, ion_mass, el_weight, ion_weight
+    REAL(num) :: sum_we, el_temp, el_p_i(3)
+    REAL(num) :: el_p2, mean_el_p2, mean_el_pxe
+    INTEGER :: n_temps
+    REAL(num) :: ion_p2, gamma_i, beta_i
+    REAL(num) :: recombine_frac, recombine_rate, uncombined_frac, recombine_no
+    REAL(num) :: recombine_prob, recombined_ion_e_i
+
+    ! Ignore collisions from empty species
+    e_count = list_e_in%count
+    ion_count = list_i_in%count
+    IF (e_count == 0 .OR. ion_count == 0) RETURN 
+
+    ! Allocate arrays to track which electrons and ions are involved in
+    ! recombination events
+    ALLOCATE(e_recombined(e_count), i_recombined(ion_count))
+    e_recombined = .FALSE.
+    i_recombined = .FALSE.
+
+    ! Pre-read weights to support this compiler option
+#ifdef PER_SPECIES_WEIGHT
+    el_weight = species_list(el_species)%weight
+    ion_weight = species_list(ion_species)%weight
+#endif
+
+    ! Calculate initial ion number density
+    ion => list_i_in%head
+    sum_wi = 0
+    DO i_ion = 1, ion_count
+#ifndef PER_SPECIES_WEIGHT
+      ion_weight = ion%weight
+#endif
+      sum_wi = sum_wi + ion_weight
+      ion => ion%next
+    END DO
+    inv_cell_volume = 1.0_num / (dx * dy)
+    n_i = sum_wi * inv_cell_volume
+
+    ! Calculate electron <p^2> and <px E>, which are needed to calculate
+    ! temperature in the ion-rest-frame
+    electron => list_e_in%head
+    sum_we = 0
+    mean_el_p2 = 0.0_num
+    mean_el_pxe = 0.0_num
+    DO i_el = 1, e_count 
+#ifndef PER_SPECIES_WEIGHT
+      el_weight = electron%weight
+#endif
+      sum_we = sum_we + electron%weight
+      el_p2 = SUM(electron%part_p(:)**2)
+      mean_el_p2 = mean_el_p2 + el_p2 * el_weight
+      mean_el_pxe = mean_el_pxe + electron%part_p(1) &
+          * SQRT(el_p2*c**2 + m0c2**2) * el_weight
+      electron => electron%next
+    END DO
+    mean_el_p2 = mean_el_p2 / sum_we
+    mean_el_pxe = mean_el_pxe / sum_we
+
+    ! Number of entries in the alpha(T) tables for this species
+    n_temps = species_list(ion_species)%recombine_array_size
+
+    ! Each macro-e collision must pair to a macro-ion. To ensure there is always
+    ! a macro-ion available, temporarily make the ion list circular
+    list_i_in%tail%next => list_i_in%head
+    ion => list_i_in%head
+    i_ion = 1
+
+    ! Loop over all macro-electrons
+    recombined_count = 0
+    electron => list_e_in%head
+    DO i_el = 1, e_count
+
+      ! Some macro-electrons must collide with many macro-ions to create the
+      ! right number of recombined ions, this loop allows for multiple 
+      ! collisions
+      uncombined_frac = 1.0_num
+      e_collide_again = .TRUE.
+      DO WHILE (e_collide_again)
+
+#ifndef PER_SPECIES_WEIGHT
+        el_weight = electron%weight
+        ion_weight = ion%weight
+#endif
+
+        ! Check if ion is moving or at rest
+        ion_p2 = DOT_PRODUCT(ion%part_p, ion%part_p)
+        ion_at_rest = ion_p2 < 1.0e-100_num
+
+        ! If the ion is moving, then perform a Lorentz transform to the ion
+        ! rest-frame (rates are evaluted in rest-frame)
+        IF (.NOT. ion_at_rest) THEN
+#ifdef PER_PARTICLE_CHARGE_MASS
+          ion_mass = ion%mass
+#else
+          ion_mass = species_list(ion_species)%mass
+#endif
+          gamma_i = SQRT(ion_p2 / (ion_mass * c)**2 + 1.0_num)
+          beta_i = SQRT(1.0_num - 1.0_num / gamma_i**2)
+
+          ! Calculate temperature in ion-rest-frame, assuming isotropic e-
+          el_temp = (mean_el_p2 &
+              * ((gamma_i**2 + 2.0_num) / 3.0_num + (gamma_i * beta_i)**2) &
+              + (gamma_i * beta_i * m0 * c)**2 &
+              - 2.0_num * beta_i * gamma_i**2 * mean_el_pxe / c) &
+              / (3 * m0 * kb)
+        ELSE
+          ! Ion is already at rest
+          el_temp = mean_el_p2 / (3.0_num * m0 * kb)
+        END IF
+
+        recombine_rate = find_value_from_table_1d_recombine(el_temp, n_temps, &
+            species_list(ion_species)%recombine_temp, &
+            species_list(ion_species)%recombine_rate, last_state)
+
+        ! Expected number of recombined ions from the incident electron
+        recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt)
+        recombine_no = el_weight * recombine_prob * uncombined_frac 
+
+        ! Do we recombine a macro-ion?
+        IF (recombine_no > ion_weight) THEN
+          ! Weight of macro-ion less than expected number of recombinations
+          ! Recombine macro-ion but find a new target for macro-electron
+          create_recombination = .TRUE.
+
+          ! Save fraction of recombinations left to make
+          recombine_frac = ion_weight / recombine_no
+          uncombined_frac = uncombined_frac * (1.0_num - recombine_frac)
+        ELSE
+          ! Weight of macro-ion >= expected number of recombinations
+          ! Sample the probability of recombination of the macro-ion
+          create_recombination = (random() <= recombine_no / ion_weight)
+
+          ! Electron has created all the recombinations it will (if any), do not 
+          ! re-collide
+          e_collide_again = .FALSE.
+        END IF
+
+        ! Mark particles as recombined
+        IF (create_recombination) THEN 
+          i_recombined(i_ion) = .TRUE.
+          e_recombined(i_el) = .TRUE.
+          recombined_count = recombined_count + 1
+          n_i = n_i - ion_weight * inv_cell_volume
+
+          ! Conserve momentum of recombined particle
+          ion%part_p = ion%part_p + electron%part_p
+        END IF
+
+        ! Check if any ions remain for recombination by the current electron
+        IF (recombined_count == ion_count) EXIT
+
+        ! Ensure the next ion is a valid target (not previously recombined)
+        ion => ion%next
+        i_ion = MOD(i_ion, ion_count) + 1
+        DO WHILE (i_recombined(i_ion))
+          ion => ion%next
+          i_ion = MOD(i_ion, ion_count) + 1
+        END DO
+      END DO
+
+      ! Check if any ions remain for ionisation of the next electrons
+      IF (recombined_count == ion_count) EXIT
+
+      electron => electron%next
+    END DO
+
+    ! Restore the tail of the ion list
+    NULLIFY(list_i_in%tail%next)
+
+    ! Move recombined macro-ions to the recombined-ion particle list
+    ion => list_i_in%head
+    DO i_ion = 1, ion_count
+      next_ion => ion%next
+      IF (i_recombined(i_ion)) THEN
+        CALL remove_particle_from_partlist(list_i_in, ion)
+        CALL add_particle_to_partlist(list_i_recombined, ion)
+      END IF
+      ion => next_ion
+    END DO
+
+    ! Remove recombined macro-electrons from the simulation
+    electron => list_e_in%head
+    DO i_el = 1, e_count
+      next_electron => electron%next
+      IF (e_recombined(i_el)) THEN
+        CALL remove_particle_from_partlist(list_e_in, electron)
+      END IF
+      electron => next_electron
+    END DO
+
+    DEALLOCATE(e_recombined, i_recombined)
+
+  END SUBROUTINE recombine_ei
+
+
+
+  FUNCTION find_value_from_table_1d_recombine(x_in, nx, x, values, state)
+
+    ! For a pair of arrays, x and values, of size nx, this function returns the
+    ! interpolated value of "values" corresponding to x_in in the x array. This
+    ! uses linear interpolation, unlike in photons.F90 which is logarithmic
+
+    REAL(num) :: find_value_from_table_1d_recombine
+    REAL(num), INTENT(IN) :: x_in
+    INTEGER, INTENT(IN) :: nx
+    REAL(num), INTENT(IN) :: x(:), values(:)
+    TYPE(interpolation_state), INTENT(INOUT) :: state
+    REAL(num) :: fx, value_interp, xdif1, xdif2, xdifm
+    INTEGER :: i1, i2, im
+    LOGICAL, SAVE :: warning = .TRUE.
+    LOGICAL :: found
+
+    ! Scan through x to find correct row of table
+    i1 = state%ix1
+    i2 = state%ix2
+    found = .FALSE.
+    IF (i1 /= i2) THEN
+      xdif1 = x(i1) - x_in
+      xdif2 = x(i2) - x_in
+      IF (xdif1 * xdif2 < 0) THEN
+        found = .TRUE.
+      ELSE
+        i1 = MIN(state%ix1+1,nx)
+        i2 = MIN(state%ix2+1,nx)
+        xdif1 = x(i1) - x_in
+        xdif2 = x(i2) - x_in
+        IF (xdif1 * xdif2 < 0) THEN
+          found = .TRUE.
+        ELSE
+          i1 = MAX(state%ix1-1,1)
+          i2 = MAX(state%ix2-1,1)
+          xdif1 = x(i1) - x_in
+          xdif2 = x(i2) - x_in
+          IF (xdif1 * xdif2 < 0) THEN
+            found = .TRUE.
+          END IF
+        END IF
+      END IF
+    END IF
+
+    IF (.NOT.found) THEN
+      ! Scan through x to find correct row of table
+      i1 = 1
+      i2 = nx
+      xdif1 = x(i1) - x_in
+      xdif2 = x(i2) - x_in
+      IF (xdif1 * xdif2 < 0) THEN
+        ! Use bisection to find the nearest cell
+        DO
+          im = (i1 + i2) / 2
+          xdifm = x(im) - x_in
+          IF (xdif1 * xdifm < 0) THEN
+            i2 = im
+          ELSE
+            i1 = im
+            xdif1 = xdifm
+          END IF
+          IF (i2 - i1 == 1) EXIT
+        END DO
+        found = .TRUE.
+      END IF
+    END IF
+
+    IF (found) THEN
+      ! Interpolate in x to find fraction between the cells
+      fx = (x_in - x(i1)) / (x(i2) - x(i1))
+      state%ix1 = i1
+      state%ix2 = i2
+    ELSE
+      IF (warning .AND. rank == 0) THEN
+        PRINT*,'*** WARNING ***'
+        PRINT*,'Electron temperature outside range of known values for ', &
+            'recombination data'
+        PRINT*,'Using rate at limit of table. No more warnings will be issued.'
+        warning = .FALSE.
+      END IF
+      ! Our x_in value falls outside of the x array - truncate the value
+      IF (xdif1 >= 0) THEN
+        fx = 0.0_num
+      ELSE
+        fx = 1.0_num
+      END IF
+      state%ix1 = 1
+      state%ix2 = 1
+    END IF
+
+    ! Corresponding number from value array, a fraction fx between i1 and i2
+    value_interp = (1.0_num - fx) * values(i1) + fx * values(i2)
+    find_value_from_table_1d_recombine = value_interp
+    state%x = x_in
+    state%val1d = find_value_from_table_1d_recombine
+
+  END FUNCTION find_value_from_table_1d_recombine
+
+END MODULE recombination
+  

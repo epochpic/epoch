@@ -319,10 +319,11 @@ SRCFILES = background_collisions.F90 balance.F90 bethe_heitler.F90 \
 	mpi_routines.F90 mpi_subtype_control.f90 numerics.f90 particle_id_hash.F90 \
 	particle_migration.F90 particle_pointer_advance.f90 particle_temperature.F90 \
 	particles.F90 partlist.F90 photons.F90 prefetch.F90 probes.F90 \
-	random_generator.f90 redblack_module.f90 setup.F90 shape_functions.F90 \
-	shared_data.F90 shunt.F90 simple_io.F90 split_particle.F90 stack.f90 \
-	strings.f90 strings_advanced.f90 terminal_controls.F90 timer.f90 \
-	tokenizer_blocks.f90 utilities.f90 version_data.F90 welcome.F90 window.F90
+	random_generator.f90 recombination.F90 redblack_module.f90 setup.F90 \
+  shape_functions.F90 shared_data.F90 shunt.F90 simple_io.F90 \
+  split_particle.F90 stack.f90 strings.f90 strings_advanced.f90 \
+  terminal_controls.F90 timer.f90 tokenizer_blocks.f90 utilities.f90 \
+  version_data.F90 welcome.F90 window.F90
 
 OBJFILES := $(SRCFILES:.f90=.o)
 OBJFILES := $(OBJFILES:.F90=.o)
@@ -502,8 +503,8 @@ dist_fn.o: dist_fn.F90 mpi_subtype_control.o particles.o $(SDFMOD)
 epoch2d.o: epoch2d.F90 background_collisions.o balance.o bremsstrahlung.o \
 	calc_df.o collisions.o collision_ionise.o current_smooth.o deck.o \
 	diagnostics.o fields.o finish.o helper.o ic_module.o injectors.o ionise.o \
-	mpi_routines.o particle_migration.o particles.o photons.o setup.o \
-	split_particle.o welcome.o window.o
+	mpi_routines.o particle_migration.o particles.o photons.o recombination.o \
+  setup.o split_particle.o welcome.o window.o
 	$(FC) -c $(FFLAGS) $(FLTCONS) -o $(OBJDIR)/$@ $(PREPROFLAGS) $<
 evaluate.o: evaluate.F90 shunt.o stack.o
 evaluator_blocks.o: evaluator_blocks.F90 custom_parser.o stack.o strings.o
@@ -536,6 +537,7 @@ photons.o: photons.F90 partlist.o
 prefetch.o: prefetch.F90 shared_data.o
 probes.o: probes.F90 partlist.o $(SDFMOD)
 random_generator.o: random_generator.f90
+recombination.o: recombination.F90 calc_df.o collisions.o
 redblack_module.o: redblack_module.f90 partlist.o
 setup.o: setup.F90 balance.o boundary.o constants.o fields.o helper.o \
   injectors.o laser.o mpi_routines.o mpi_subtype_control.o particle_id_hash.o \

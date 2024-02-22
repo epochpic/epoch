@@ -1138,7 +1138,7 @@ CONTAINS
     gamma_i = SQRT(ion_p2 / (ion_mass * c)**2 + 1.0_num)
     beta_i = SQRT(1.0_num - 1.0_num / gamma_i**2)
 
-    ! Lorentz transform e- kinetic energy to ion rest frame
+    ! Electron energy in simulation frame
     el_p2 = el_px**2 + el_py**2 + el_pz**2
     el_e = SQRT(el_p2 + (m0*c)**2) * c
 

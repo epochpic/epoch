@@ -264,6 +264,12 @@ MODULE shared_data
     REAL(num), ALLOCATABLE :: coll_ion_mean_bind(:,:)
     REAL(num), ALLOCATABLE :: coll_ion_secondary_ke(:,:)
     REAL(num), ALLOCATABLE :: coll_ion_secondary_cdf(:,:)
+    
+    ! Species recombination
+    LOGICAL :: recombine
+    INTEGER :: recombine_to_species
+    INTEGER :: recombine_array_size
+    REAL(num), ALLOCATABLE :: recombine_temp(:), recombine_rate(:)
 
     ! Attached probes for this species
 #ifndef NO_PARTICLE_PROBES
@@ -554,7 +560,7 @@ MODULE shared_data
   LOGICAL :: coll_subcycle_back = .FALSE.
   LOGICAL :: coll_back_recalc
 
-  LOGICAL :: use_field_ionisation, use_collisional_ionisation
+  LOGICAL :: use_field_ionisation, use_collisional_ionisation, use_recombination
   LOGICAL :: use_multiphoton, use_bsi
   CHARACTER(LEN=string_length) :: physics_table_location
 

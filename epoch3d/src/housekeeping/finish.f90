@@ -96,6 +96,10 @@ CONTAINS
         DEALLOCATE(species_list(i)%coll_ion_secondary_cdf, STAT=stat)
         DEALLOCATE(species_list(i)%coll_ion_mean_bind, STAT=stat)
       END IF
+      IF (species_list(i)%recombine) THEN 
+        DEALLOCATE(species_list(i)%recombine_temp, STAT=stat)
+        DEALLOCATE(species_list(i)%recombine_rate, STAT=stat)
+      END IF
     END DO
 
     DEALLOCATE(species_list, STAT=stat)

@@ -47,6 +47,7 @@ PROGRAM pic
   USE collision_ionise
   USE background_collisions
   USE particle_migration
+  USE recombination
   USE ionise
   USE calc_df
   USE injectors
@@ -184,6 +185,7 @@ PROGRAM pic
   IF (.NOT.ic_from_restart) CALL output_routines(step) ! diagnostics.f90
   IF (use_field_ionisation) CALL initialise_ionisation
   IF (use_collisional_ionisation) CALL setup_coll_ionise_tables
+  CALL setup_recombination_tables
 
   IF (timer_collect) CALL timer_start(c_timer_step)
 
@@ -223,7 +225,8 @@ PROGRAM pic
 
         ! After this line, the particles can be accessed on a cell by cell basis
         ! Using the particle_species%secondary_list property
-        IF (use_split .OR. collision_step .OR. coll_ion_step) THEN
+        IF (use_split .OR. collision_step .OR. coll_ion_step .OR. &
+            use_recombination) THEN
           CALL reorder_particles_to_grid
         END IF
 
@@ -236,10 +239,13 @@ PROGRAM pic
           CALL particle_collisions
         END IF
 
+        IF (use_recombination) CALL run_recombination
+
         ! Early beta version of particle splitting operator
         IF (use_split) CALL split_particles
 
-        IF (use_split .OR. collision_step .OR. coll_ion_step) THEN
+        IF (use_split .OR. collision_step .OR. coll_ion_step .OR. &
+            use_recombination) THEN
           CALL reattach_particles_to_mainlist
         END IF
       END IF
