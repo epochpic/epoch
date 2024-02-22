@@ -38,9 +38,10 @@ MODULE deck_species_block
   INTEGER :: check_block = c_err_none
   LOGICAL, DIMENSION(:), POINTER :: species_charge_set
   INTEGER, DIMENSION(:), POINTER :: species_ionise_limit 
-  LOGICAL, DIMENSION(:), POINTER :: species_can_ionise 
+  LOGICAL, DIMENSION(:), POINTER :: species_can_ionise
+  LOGICAL, DIMENSION(:), POINTER :: species_can_recombine 
   INTEGER :: n_secondary_species_in_block, n_secondary_limit
-  LOGICAL :: unique_electrons, use_ionise
+  LOGICAL :: unique_electrons, use_ionise, use_recombine
   CHARACTER(LEN=string_length) :: release_species_list
   CHARACTER(LEN=string_length), DIMENSION(:), POINTER :: release_species
   REAL(num), DIMENSION(:), POINTER :: ionisation_energies
@@ -49,6 +50,7 @@ MODULE deck_species_block
   INTEGER, DIMENSION(:), POINTER :: atomic_number
   INTEGER, DIMENSION(:), POINTER :: principle, angular, part_count
   INTEGER, DIMENSION(:), POINTER :: ionise_to_species, dumpmask_array
+  INTEGER, DIMENSION(:), POINTER :: recombine_to_species
   INTEGER, DIMENSION(:,:), POINTER :: bc_particle_array
   REAL(num) :: species_mass, species_charge
   INTEGER :: species_dumpmask
@@ -68,6 +70,7 @@ CONTAINS
       ! All the following information is required during c_ds_first so that the
       ! derived ionisation species can be correctly set up
       ALLOCATE(ionise_to_species(4))
+      ALLOCATE(recombine_to_species(4))
       ALLOCATE(release_species(4))
       ALLOCATE(ionisation_energies(4))
       ALLOCATE(mass(4))
@@ -76,6 +79,7 @@ CONTAINS
       ALLOCATE(principle(4))
       ALLOCATE(angular(4))
       ALLOCATE(species_can_ionise(4))
+      ALLOCATE(species_can_recombine(4))
       ALLOCATE(species_ionise_limit(4))
       ALLOCATE(part_count(4))
       ALLOCATE(dumpmask_array(4))
@@ -116,6 +120,7 @@ CONTAINS
         species_list(i)%dumpmask = dumpmask_array(i)
         species_list(i)%bc_particle = bc_particle_array(:,i)
         species_list(i)%ionise = species_can_ionise(i)
+        species_list(i)%recombine = species_can_recombine(i)
       END DO
 
       CALL set_ionisation_species_properties
@@ -137,10 +142,12 @@ CONTAINS
       DEALLOCATE(mass)
       DEALLOCATE(atomic_number)
       DEALLOCATE(species_can_ionise, species_ionise_limit)
+      DEALLOCATE(species_can_recombine)
       DEALLOCATE(ionisation_energies)
       DEALLOCATE(auto_electrons)
       DEALLOCATE(release_species)
       DEALLOCATE(ionise_to_species)
+      DEALLOCATE(recombine_to_species)
       DEALLOCATE(species_names)
 
       ! Sanity check on periodic boundaries
@@ -242,6 +249,7 @@ CONTAINS
   SUBROUTINE species_block_start
 
     use_ionise = .FALSE.
+    use_recombine = .FALSE.
     unique_electrons = .FALSE.
     n_secondary_species_in_block = 0
     n_secondary_limit = 200  ! 200 allows all ionisations from any table element
@@ -286,7 +294,8 @@ CONTAINS
       charge(n_species) = species_charge
       mass(n_species) = species_mass
       atomic_number(n_species) = species_atomic_number
-      species_can_ionise(n_species) = use_ionise 
+      species_can_ionise(n_species) = use_ionise
+      species_can_recombine(n_species) = use_recombine
       species_ionise_limit(n_species) = n_secondary_limit
       auto_electrons(n_species) = unique_electrons
       bc_particle_array(:, n_species) = species_bc_particle
@@ -330,6 +339,11 @@ CONTAINS
     IF (str_cmp(element, 'ionise') &
         .OR. str_cmp(element, 'ionize')) THEN
       use_ionise = as_logical_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'recombine')) THEN
+      use_recombine = as_logical_print(value, element, errcode)
       RETURN
     END IF
 
@@ -1148,8 +1162,10 @@ CONTAINS
 
     CALL grow_array(species_names, n_species)
     CALL grow_array(species_can_ionise, n_species)
+    CALL grow_array(species_can_recombine, n_species)
     CALL grow_array(species_ionise_limit, n_species)
     CALL grow_array(ionise_to_species, n_species)
+    CALL grow_array(recombine_to_species, n_species)
     CALL grow_array(release_species, n_species)
     CALL grow_array(mass, n_species)
     CALL grow_array(charge, n_species)
@@ -1164,6 +1180,7 @@ CONTAINS
 
     species_names(n_species) = TRIM(name)
     ionise_to_species(n_species) = -1
+    recombine_to_species(n_species) = -1
     release_species(n_species) = ''
     mass(n_species) = -1.0_num
     charge(n_species) = 0.0_num
@@ -1176,6 +1193,7 @@ CONTAINS
     auto_electrons(n_species) = .FALSE.
     bc_particle_array(:,n_species) = species_bc_particle
     species_can_ionise(n_species) = .FALSE.
+    species_can_recombine(n_species) = .FALSE.
     species_ionise_limit(n_species) = 1000
 
     RETURN
@@ -1709,6 +1727,12 @@ CONTAINS
           ionise_species(prev_ion) = .TRUE.
           species_list(prev_ion)%ionise_to_species = new_ion
 
+          ! Set recombine_to_species parameter if appropriate
+          species_list(new_ion)%recombine = species_list(prev_ion)%recombine
+          IF (species_list(new_ion)%recombine) THEN
+            species_list(new_ion)%recombine_to_species = prev_ion
+          END IF
+
           ! Set electron release species for the prev_ion species
           IF (auto_electrons(i_spec)) THEN
 
@@ -1757,6 +1781,9 @@ CONTAINS
 
           prev_ion = new_ion
         END DO
+
+        ! Base species cannot recombine 
+        species_list(i_spec)%recombine = .FALSE. 
 
         DEALLOCATE(ionise_energy, ion_n, ion_l)
         IF (.NOT. auto_electrons(i_spec)) CALL deallocate_stack(stack)
