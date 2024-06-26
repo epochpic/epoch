@@ -594,7 +594,8 @@ CONTAINS
     REAL(num), INTENT(OUT) :: binding_energy(:), bound_ke(:)
     INTEGER, INTENT(OUT) :: el_n(:), el_l(:)
     CHARACTER(LEN=3) :: z_string
-    LOGICAL :: exists
+    LOGICAL :: exists, occ_no_from_file
+    INTEGER :: occ_no(29)
     INTEGER :: i_file, io, iu, read_ion, i_shell, el_remain, i_el, el_no
     REAL(num), ALLOCATABLE :: be_all_shells(:), u_all_shells(:)
 
@@ -631,10 +632,25 @@ CONTAINS
         FILE = TRIM(physics_table_location)//'/bound_ke/u_'//z_string, &
         STATUS = 'OLD')
 
+    ! Check if a file is present for occupancy numbers
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/occupancy_numbers/occ_no_"&
+        // z_string, EXIST=exists)
+
+    ! Open occupancy number file if one is present
+    IF (exists) THEN
+      occ_no_from_file = .TRUE.
+      OPEN(UNIT = lu+2, &
+          FILE = TRIM(physics_table_location)//'/occupancy_numbers/occ_no_'//&
+          z_string, STATUS = 'OLD')
+    ELSE
+      occ_no_from_file = .FALSE.
+    END IF
+
     ! Keep reading the file until the correct line is reached (ignore header)
     DO i_file = 1, ion_state+1
       READ(lu,*)
       READ(lu+1,*)
+      IF (occ_no_from_file) READ(lu+2,*)
     END DO
 
     ! Ignore the charge column and read the binding energies and mean oribtial
@@ -646,6 +662,12 @@ CONTAINS
     CLOSE(lu)
     CLOSE(lu+1)
 
+    ! If the occupancy number has been provided, read the file
+    IF (occ_no_from_file) THEN 
+      READ(lu+2,*) read_ion, occ_no(1:29)
+      CLOSE(lu+2)
+    END IF
+
     ! Convert energies to [J]
     be_all_shells = be_all_shells * q0
     u_all_shells = u_all_shells * q0
@@ -653,7 +675,11 @@ CONTAINS
     ! Loop over the electrons, deduce the shell and save the binding energy,
     ! bound KE, and quantum numbers
     i_shell = 1
-    el_remain = table_count(i_shell)
+    IF (occ_no_from_file) THEN
+      el_remain = occ_no(i_shell)
+    ELSE
+      el_remain = table_count(i_shell)
+    END IF
     el_no = atomic_no - ion_state
     DO i_el = 1, el_no
 
@@ -668,7 +694,11 @@ CONTAINS
         END DO
 
         ! Number of vacancies in the new shell
-        el_remain = table_count(i_shell)
+        IF (occ_no_from_file) THEN
+          el_remain = occ_no(i_shell)
+        ELSE
+          el_remain = table_count(i_shell)
+        END IF
       END IF
 
       ! Save shell properties to current electron
@@ -682,6 +712,7 @@ CONTAINS
     END DO
 
     DEALLOCATE(be_all_shells)
+    DEALLOCATE(u_all_shells)
 
   END SUBROUTINE get_electron_data_from_file
 
