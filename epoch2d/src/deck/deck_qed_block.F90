@@ -145,6 +145,11 @@ CONTAINS
       RETURN
     END IF
 
+    IF (str_cmp(element, 'pair_upscaling')) THEN
+      pair_upscaling = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
     IF (str_cmp(element, 'qed_table_location')) THEN
       qed_table_location = TRIM(ADJUSTL(value))
       RETURN
