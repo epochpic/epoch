@@ -185,6 +185,11 @@ CONTAINS
       RETURN
     END IF
 
+    IF (str_cmp(element, 'betheheitler_upscaling')) THEN
+      betheheitler_upscaling = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
     IF (str_cmp(element, 'use_positron_brem') .OR. &
         str_cmp(element, 'positron_brem')) THEN
       positron_brem = as_logical_print(value, element, errcode)

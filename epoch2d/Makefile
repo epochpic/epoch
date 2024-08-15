@@ -215,13 +215,13 @@ DEFINES := $(DEFINE)
 #DEFINES += $(D)PARTICLE_ID4
 
 # Include QED routines
-#DEFINES += $(D)PHOTONS
+DEFINES += $(D)PHOTONS
 
 # Use the Trident process for pair production
 #DEFINES += $(D)TRIDENT_PHOTONS
 
 # Include bremsstrahlung routines
-#DEFINES += $(D)BREMSSTRAHLUNG
+DEFINES += $(D)BREMSSTRAHLUNG
 
 # Use Intel-specific 'mm_prefetch' calls to load next particle in the list
 # into cache ahead of time. Gives ~10% speed-up with Intel 12 compilers.

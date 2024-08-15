@@ -18,7 +18,7 @@ MODULE random_generator
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: random, random_init, get_random_state, set_random_state
-  PUBLIC :: random_box_muller, random_state_type, random_flush_cache
+  PUBLIC :: random_box_muller, random_poisson, random_state_type, random_flush_cache
 
   INTEGER, PARAMETER :: init_x = 123456789
   INTEGER, PARAMETER :: init_y = 362436069
@@ -171,6 +171,72 @@ CONTAINS
     END IF
 
   END FUNCTION random_box_muller
+
+
+
+  FUNCTION factorial(n)
+  ! Quick recursive factorial function
+  ! C. Arran 2023
+  
+    INTEGER, INTENT(IN) :: n
+    DOUBLE PRECISION :: factorial
+    INTEGER :: i
+    
+    DO i = 2,INT(n)
+      factorial = factorial * i
+    END DO
+    
+  END FUNCTION factorial
+
+
+
+  FUNCTION random_poisson(lambda)
+  ! This samples a random number from a Poisson distribution with mean lambda
+  ! Based on A.C. Atkinson Appl. Statist. 28, 29 (1979)
+  ! C. Arran 2023
+  
+    DOUBLE PRECISION, INTENT(IN) :: lambda
+    DOUBLE PRECISION :: random_poisson
+    INTEGER :: n
+    DOUBLE PRECISION :: target, total
+    DOUBLE PRECISION :: alpha, beta, k, x, u
+
+    IF (lambda.LT.20) THEN
+    ! At low lambda < 20 it uses the multiplication method of successive independent Poisson processes
+      total = 1
+      n = -1
+      target = EXP(-lambda)
+      DO WHILE (total > target)
+        total = total * (1.0 - random())
+        n = n + 1
+      END DO           
+      random_poisson = n 
+
+    ELSE
+    ! At high lambda >= 20 it uses a rejection sampling algorithm enveloped by the logistic distribution
+    ! The shape of the logistic envelope varies with lambda - estimate this with alpha, beta, k
+      beta = 4*ATAN(1.d0) / SQRT(3*lambda) ! pi = 4*ATAN(1.d0)
+      alpha = beta*lambda
+      k = LOG(0.767-3.36/lambda) - LOG(beta)
+      
+      total = 1
+      target = 0
+      DO WHILE (total > target)
+        x = 0
+        DO WHILE (x < -0.5d0)
+          u = random()
+          x = (alpha - LOG((1-u)/u)) / beta
+        END DO
+        n = INT(x+0.5d0)
+        u = random()
+        total = alpha - beta*x + LOG(u/(1+EXP(alpha-beta*x))**2) - k
+        target = - lambda + n*LOG(lambda) - LOG(factorial(n))
+      END DO
+      random_poisson = n
+
+    END IF
+
+  END FUNCTION random_poisson
 
 
 

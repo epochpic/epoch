@@ -658,7 +658,7 @@ CONTAINS
       DEALLOCATE(grid_root_temp_over_num)
     END IF
 
-    IF (use_bethe_heitler) CALL bethe_heitler_update_depth
+    IF (use_bethe_heitler) CALL bethe_heitler_update_poisson
 
   END SUBROUTINE bremsstrahlung_update_optical_depth
 
