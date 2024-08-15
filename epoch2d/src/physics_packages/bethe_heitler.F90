@@ -436,9 +436,15 @@ SUBROUTINE bethe_heitler_update_poisson
     new_electron%part_pos = photon%part_pos
     new_positron%part_pos = photon%part_pos
 
-    ! e- and e+ have the same weights as generating photon
-    new_electron%weight = pair_weight
-    new_positron%weight = pair_weight
+    IF (pair_weight < photon%weight) THEN
+      ! Set pair weight
+      new_electron%weight = pair_weight
+      new_positron%weight = pair_weight
+    ELSE
+      ! e- and e+ have the same weights as generating photon
+      new_electron%weight = photon%weight
+      new_positron%weight = photon%weight
+    END IF
 
     ! Calculate fractional energy split
     e_frac = energy_split(photon, z_int)
