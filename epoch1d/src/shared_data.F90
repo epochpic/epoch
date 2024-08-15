@@ -637,6 +637,7 @@ MODULE shared_data
   LOGICAL :: use_brem_scatter = .FALSE.
   CHARACTER(LEN=string_length) :: bremsstrahlung_table_location
   LOGICAL :: use_bethe_heitler = .FALSE.
+  REAL(num) :: betheheitler_upscaling = 1.0_num ! C. Arran: Scale rate of pair production
   LOGICAL :: positron_brem = .FALSE.
 #endif
   LOGICAL :: use_bremsstrahlung = .FALSE.

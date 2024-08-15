@@ -179,6 +179,79 @@ CONTAINS
   END SUBROUTINE bethe_heitler_update_depth
 
 
+SUBROUTINE bethe_heitler_update_poisson
+
+    ! Cycles through all photon species and updates the Bethe-Heitler optical
+    ! depths (labelled bremsstrahlung for photons)
+
+    INTEGER :: iz, z_temp, ispecies
+    REAL(num), ALLOCATABLE :: grid_num_density_ion(:)
+    TYPE(particle), POINTER :: photon, next_photon
+    REAL(num) :: part_x
+    REAL(num) :: cross_sec, part_ni, delta_opdep
+    REAL(num) :: lambda, pair_weight
+
+    ALLOCATE(grid_num_density_ion(1-ng:nx+ng))
+
+    ! Calculate the number density of each ion species
+    DO iz = 1, n_species
+      ! Identify if the charge is greater than 1
+      z_temp = species_list(iz)%atomic_no
+      IF (z_temp < 1 .OR. z_temp > 100) CYCLE
+
+      CALL calc_number_density(grid_num_density_ion, iz)
+      CALL field_bc(grid_num_density_ion, ng)
+
+      ! Update the optical depth for each photon species
+      DO ispecies = 1, n_species
+        ! Only update optical_depth_bremsstrahlung for the photon species
+        IF (species_list(ispecies)%species_type == c_species_id_photon) THEN
+          ! Cycle through all photons in this species
+          photon => species_list(ispecies)%attached_list%head
+          DO WHILE(ASSOCIATED(photon))
+            ! Remember the next photon in the list, as the current photon could
+            ! be removed
+            next_photon => photon%next
+
+            ! Photon energy is calculated on creation, and this energy never
+            ! changes in the current version of the code (11/Feb/2021). Check it
+            ! is high enough to pair produce.
+            IF (photon%particle_energy < two_mc2) THEN
+              photon => next_photon
+              CYCLE
+            END IF
+
+            ! Calculate the cross section at this photon energy
+            cross_sec = calc_bh_cross_sec(z_temp, photon%particle_energy)
+
+            ! Get background number density at photon
+            part_x = photon%part_pos - x_grid_min_local
+            CALL grid_centred_var_at_particle(part_x, part_ni, &
+                grid_num_density_ion)
+
+            ! Calculate the average emission rate and the 
+            lambda = part_ni * cross_sec * cdt
+            pair_weight = random_poisson(lambda * betheheitler_upscaling)
+            
+            ! If photon optical depth drops below 0, create an e-/e+ pair and
+            ! remove the photon from the simulation
+            IF (pair_weight > 0) THEN
+              CALL generate_weighted_pair(photon, z_temp, &
+                  bethe_heitler_electron_species, &
+                  bethe_heitler_positron_species, ispecies, &
+                  pair_weight / pair_upscaling)
+            END IF
+
+            photon => next_photon
+          END DO
+        END IF
+      END DO
+    END DO
+
+    DEALLOCATE(grid_num_density_ion)
+
+  END SUBROUTINE bethe_heitler_update_poisson
+
 
   function calc_bh_cross_sec(z_int, e_gamma)
 
@@ -333,6 +406,102 @@ CONTAINS
 
   END SUBROUTINE generate_pair
 
+
+  SUBROUTINE generate_weighted_pair(photon, z_int, ielectron, ipositron, iphoton, pair_weight)
+
+    ! This subroutine is called when "photon" undergoes Bethe-Heitler pair
+    ! production. Macro-particles for e- and e+ are created, and the energies
+    ! and directions are sampled using Geant4 algorithms. A full description of
+    ! these equations may be found in the Geant4 Physics Reference Manual, and
+    ! in the references therein. The photon is removed from the simulation here
+
+    TYPE(particle), POINTER :: photon
+    INTEGER, INTENT(IN) ::  z_int, ielectron, ipositron, iphoton
+    REAL(num), INTENT(IN) :: pair_weight
+    TYPE(particle), POINTER :: new_electron, new_positron
+    REAL(num) :: e_frac
+    REAL(num) :: energy_1, momentum_1, theta_1, phi_1
+    REAL(num) :: energy_2, momentum_2, theta_2, phi_2
+    REAl(num) :: norm, dir_x, dir_y, dir_z
+    REAL(num) :: p_save, e_save, theta_save, phi_save
+
+    ! Create pair at photon position
+    CALL create_particle(new_electron)
+    CALL create_particle(new_positron)
+    new_electron%part_pos = photon%part_pos
+    new_positron%part_pos = photon%part_pos
+
+    ! e- and e+ have the same weights as generating photon
+    new_electron%weight = pair_weight
+    new_positron%weight = pair_weight
+
+    ! Calculate fractional energy split
+    e_frac = energy_split(photon, z_int)
+
+    ! Calculate momentum magnitude going to each particle
+    energy_1 = e_frac * photon%particle_energy
+    energy_2 = (1.0_num - e_frac) * photon%particle_energy
+    momentum_1 = SQRT(energy_1**2 - m0c2**2)/c
+    momentum_2 = SQRT(energy_2**2 - m0c2**2)/c
+
+    ! Calculate scatter angles of each particle
+    CALL sample_theta(energy_1, energy_2, theta_1, theta_2)
+    phi_1 = random()*2.0_num*pi
+    phi_2 = phi_1 + pi
+
+    ! Calculate momentum direction of generating photon
+    norm  = c / photon%particle_energy
+    dir_x = photon%part_p(1) * norm
+    dir_y = photon%part_p(2) * norm
+    dir_z = photon%part_p(3) * norm
+
+    ! Randomly swap properties of 1 and 2 (could be either e+ or e-)
+    IF (random() > 0.5_num) THEN
+      p_save = momentum_1
+      e_save = energy_1
+      theta_save = theta_1
+      phi_save = phi_1
+
+      momentum_1 = momentum_2
+      energy_1 = energy_2
+      theta_1 = theta_2
+      phi_1 = phi_2
+
+      momentum_2 = p_save
+      energy_2 = e_save
+      theta_2 = theta_save
+      phi_2 = phi_save
+    END IF
+
+    ! Assign momenta to particles
+    new_electron%part_p(1:3) = momentum_1 * (/ dir_x, dir_y, dir_z /)
+    new_positron%part_p(1:3) = momentum_2 * (/ dir_x, dir_y, dir_z /)
+
+    ! Rotate momenta for each particle
+    CALL rotate_p(new_electron, COS(theta_1), phi_1, momentum_1)
+    CALL rotate_p(new_positron, COS(theta_2), phi_2, momentum_2)
+
+    ! Set particle energies
+    new_electron%particle_energy = energy_1
+    new_positron%particle_energy = energy_2
+
+    ! Save pair to particle list
+    CALL add_particle_to_partlist(species_list(ielectron)%attached_list, &
+        new_electron)
+    CALL add_particle_to_partlist(species_list(ipositron)%attached_list, &
+        new_positron)
+
+    IF (pair_weight < photon%weight) THEN
+      ! Reduce photon weight
+      photon%weight = photon%weight - pair_weight
+    ELSE
+      ! Remove photon
+      CALL remove_particle_from_partlist(species_list(iphoton)%attached_list, &
+        photon)
+      CALL destroy_particle(photon)
+    END IF
+
+  END SUBROUTINE generate_weighted_pair
 
 
   FUNCTION energy_split(photon, z_int)
