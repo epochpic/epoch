@@ -240,7 +240,7 @@ SUBROUTINE bethe_heitler_update_poisson
               CALL generate_weighted_pair(photon, z_temp, &
                   bethe_heitler_electron_species, &
                   bethe_heitler_positron_species, ispecies, &
-                  pair_weight / betheheitler_upscaling)
+                  photon%weight * pair_weight / betheheitler_upscaling)
             END IF
 
             photon => next_photon

@@ -683,7 +683,8 @@ CONTAINS
           pair_weight = random_poisson(lambda * pair_upscaling)
           IF (pair_weight > 0) THEN
             CALL generate_weighted_pair(current, chi_val, photon_species, &
-                breit_wheeler_electron_species, breit_wheeler_positron_species, pair_weight / pair_upscaling)
+                breit_wheeler_electron_species, breit_wheeler_positron_species, &
+		current%weight * pair_weight / pair_upscaling)
           END IF
           current => next_pt
         END DO
