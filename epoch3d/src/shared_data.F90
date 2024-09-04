@@ -270,8 +270,10 @@ MODULE shared_data
     ! Species recombination
     LOGICAL :: recombine
     INTEGER :: recombine_to_species
-    INTEGER :: recombine_array_size
-    REAL(num), ALLOCATABLE :: recombine_temp(:), recombine_rate(:)
+    INTEGER :: recombine_array_size_dr, recombine_array_size_rr
+    REAL(num), ALLOCATABLE :: recombine_temp_dr(:), recombine_rate_dr(:)
+    REAL(num), ALLOCATABLE :: recombine_temp_rr(:), recombine_rate_rr(:)
+
 
     ! Attached probes for this species
 #ifndef NO_PARTICLE_PROBES
@@ -602,6 +604,9 @@ MODULE shared_data
   LOGICAL :: coll_back_recalc
 
   LOGICAL :: use_field_ionisation, use_collisional_ionisation, use_recombination
+  LOGICAL :: use_dielectronic_recombination = .TRUE.
+  LOGICAL :: use_radiative_recombination = .TRUE.
+  LOGICAL :: use_three_body_recombination = .TRUE.
   LOGICAL :: use_multiphoton, use_bsi
   CHARACTER(LEN=string_length) :: physics_table_location
 

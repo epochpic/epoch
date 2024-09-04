@@ -90,9 +90,15 @@ CONTAINS
         DEALLOCATE(species_list(i)%coll_ion_secondary_cdf, STAT=stat)
         DEALLOCATE(species_list(i)%coll_ion_mean_bind, STAT=stat)
       END IF
-      IF (species_list(i)%recombine) THEN 
-        DEALLOCATE(species_list(i)%recombine_temp, STAT=stat)
-        DEALLOCATE(species_list(i)%recombine_rate, STAT=stat)
+      IF (species_list(i)%recombine) THEN
+        IF (use_dielectronic_recombination) THEN 
+          DEALLOCATE(species_list(i)%recombine_temp_dr, STAT=stat)
+          DEALLOCATE(species_list(i)%recombine_rate_dr, STAT=stat)
+        END IF
+        IF (use_radiative_recombination) THEN
+          DEALLOCATE(species_list(i)%recombine_temp_rr, STAT=stat)
+          DEALLOCATE(species_list(i)%recombine_rate_rr, STAT=stat)
+        END IF
       END IF
     END DO
 
