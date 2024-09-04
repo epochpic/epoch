@@ -19,10 +19,10 @@
 ! recombination tables have been provided for a given atomic number and charge
 ! state.
 !
-! Here we consider di-electric recombination. The electron temperature in a cell
-! determines the di-electric recombination rate, which can be used to obtain a
-! recombination cross-section. Each electron in the cell has a chance of 
-! triggering recombination.
+! Here we consider dielectronic recombination, and radiative recombination. The 
+! electron temperature in a cell determines the recombination rates, which can 
+! be used to obtain a recombination cross-section. Each electron in the cell has
+! a chance of triggering recombination.
 
 MODULE recombination
 
@@ -46,9 +46,6 @@ CONTAINS
     ! ions where this is not known 
 
     INTEGER :: ispecies, io, iu
-    INTEGER :: z_int, q_int, entries
-    CHARACTER(LEN=7) :: file_name
-    LOGICAL :: exists
 
     ! Loop through all species which are set to recombine
     DO ispecies = 1, n_species
@@ -60,59 +57,14 @@ CONTAINS
         species_list(species_list(ispecies)%recombine_to_species) &
             %make_secondary_list = .TRUE.
 
-        ! Data is in src/physics_packages/TABLES/recombination_rate/
-        ! Filename format Z.._Q.. where "." is replaced by atomic number and
-        ! initial charge-state
-        ! E.g. Gold recombination 69+ to 68+ is Z79_Q69
-        z_int = species_list(ispecies)%atomic_no
-        q_int = NINT(species_list(ispecies)%charge / q0)
-        WRITE(file_name, '(A1,I2.2,A1,A1,I2.2)') 'Z', z_int, '_', 'Q', &
-            q_int
-
-        ! Check if the data-file exists for the current ion species
-        INQUIRE(FILE=TRIM(physics_table_location)  // "/recombination_rate/"&
-            // file_name, EXIST=exists)
-
-        ! No data-file, so switch off recombination for this species, and skip
-        ! to the next species
-        IF (.NOT. exists) THEN
-          IF (rank == 0) THEN
-            PRINT*, 'No data present for recombination from ', &
-                TRIM(species_list(ispecies)%name)
-          END IF
-          species_list(ispecies)%recombine = .FALSE.
-          CYCLE
+        IF (use_dielectronic_recombination) THEN
+          CALL setup_dr_tables(ispecies)
         END IF
 
-        ! Attempt to read data file
-        ! File format consists of 3 lines:
-        ! Number of data-points
-        ! Array of electron temperatures in [K]
-        ! Array of recombination rates in [cm3/s]
-        OPEN(UNIT = lu, &
-            FILE = TRIM(physics_table_location)  // "/recombination_rate/"&
-            // file_name, &
-            STATUS = 'OLD')
-        
-        READ(lu,*) entries
-        species_list(ispecies)%recombine_array_size = entries
-
-        ALLOCATE(species_list(ispecies)%recombine_temp(entries))
-        ALLOCATE(species_list(ispecies)%recombine_rate(entries))
-
-        READ(lu,*) species_list(ispecies)%recombine_temp(:)
-        READ(lu,*) species_list(ispecies)%recombine_rate(:)
-
-        ! Convert recombination rates to SI units
-        species_list(ispecies)%recombine_rate = &
-            species_list(ispecies)%recombine_rate * 1.0e-6_num
-
-        CLOSE(lu)
-
-        IF (rank == 0) THEN
-          PRINT*, 'Successfully loaded data for recombination from ', &
-              TRIM(species_list(ispecies)%name)
+        IF (use_radiative_recombination) THEN
+          CALL setup_rr_tables(ispecies)
         END IF
+
       END IF
     END DO
 
@@ -128,6 +80,168 @@ CONTAINS
 
 
 
+  SUBROUTINE setup_dr_tables(ispecies)
+
+    ! Read the dielectronic recombination data tables from FLYCHK, converted to
+    ! SI units, and populate the recombine_temp_dr and recombine_rate_dr arrays
+    ! for the species with ID ispecies
+
+    INTEGER, INTENT(in) :: ispecies
+    INTEGER :: entries, z_int, q_int, q_read, i_read
+    LOGICAL :: exists
+    CHARACTER(LEN=9) :: file_name
+
+    ! Data is in src/physics_packages/TABLES/dr_rates/
+    ! Filename format dr_**.dat where "*" is replaced by the atomic number
+    z_int = species_list(ispecies)%atomic_no
+    WRITE(file_name, '(A3,I2.2,A4)') 'dr_', z_int, '.dat'
+
+    ! Check if the data-file exists for the current ion species
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/dr_rates/"&
+        // file_name, EXIST=exists)
+
+    ! No data-file, so switch off recombination for this species, and skip
+    ! to the next species
+    IF (.NOT. exists) THEN
+      IF (rank == 0) THEN
+        PRINT*, 'No data present for dielectronic recombination from ', &
+            TRIM(species_list(ispecies)%name)
+      END IF
+      species_list(ispecies)%recombine = .FALSE.
+      RETURN
+    END IF
+
+    ! Attempt to read data file. Typical format (reduced dr_03.dat):
+    ! ! n   Temperature [K]
+    ! !  36 5.802259e+03 1.160452e+04 1.740678e+04 ...
+    ! ! Q   Rate [m3/s]
+    ! !   1 7.596000e-59 5.057000e-38 3.589000e-31 ...
+    ! !   2 1.000000e-76 2.412000e-49 7.918000e-39 ...
+    ! !   3 1.000000e-76 1.000000e-76 1.000000e-76 ...
+    ! 
+    ! In this example: 
+    ! ! Top-left number 36 gives the number of temperature samples
+    ! ! Numbers after 36 give temperature sample points in Kelvin
+    ! ! Then we have the rates: left column for initial charge of transition
+    ! ! Numbers following Q are the rates at each temperature sample point
+    OPEN(UNIT = lu, &
+        FILE = TRIM(physics_table_location)  // "/dr_rates/"&
+        // file_name, &
+        STATUS = 'OLD')
+    
+    ! Read the number of temperature entries, ignoring first header line
+    READ(lu,*)
+    READ(lu,*) entries
+    species_list(ispecies)%recombine_array_size_dr = entries
+    CLOSE(lu)
+
+    ALLOCATE(species_list(ispecies)%recombine_temp_dr(entries))
+    ALLOCATE(species_list(ispecies)%recombine_rate_dr(entries))
+
+    ! Read the full first row of data
+    OPEN(UNIT = lu, &
+      FILE = TRIM(physics_table_location)  // "/dr_rates/"&
+      // file_name, &
+      STATUS = 'OLD')
+    READ(lu,*)
+    READ(lu,*) entries, species_list(ispecies)%recombine_temp_dr(:)
+
+    ! Skip to the line for the current species charge-state
+    q_int = NINT(species_list(ispecies)%charge / q0)
+    DO i_read = 1,q_int
+      READ(lu,*)
+    END DO
+
+    ! Read recombination rate [m³/s]
+    READ(lu,*) q_read, species_list(ispecies)%recombine_rate_dr(:)
+
+    CLOSE(lu)
+
+  END SUBROUTINE setup_dr_tables
+
+
+
+  SUBROUTINE setup_rr_tables(ispecies)
+
+    ! Read the radiative recombination data tables from FLYCHK, converted to
+    ! SI units, and populate the recombine_temp_rr and recombine_rate_rr arrays
+    ! for the species with ID ispecies
+
+    INTEGER, INTENT(in) :: ispecies
+    INTEGER :: entries, z_int, q_int, q_read, i_read
+    LOGICAL :: exists
+    CHARACTER(LEN=9) :: file_name
+
+    ! Data is in src/physics_packages/TABLES/dr_rates/
+    ! Filename format dr_**.dat where "*" is replaced by the atomic number
+    z_int = species_list(ispecies)%atomic_no
+    WRITE(file_name, '(A3,I2.2,A4)') 'rr_', z_int, '.dat'
+
+    ! Check if the data-file exists for the current ion species
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/rr_rates/"&
+        // file_name, EXIST=exists)
+
+    ! No data-file, so switch off recombination for this species, and skip
+    ! to the next species
+    IF (.NOT. exists) THEN
+      IF (rank == 0) THEN
+        PRINT*, 'No data present for radiative recombination from ', &
+            TRIM(species_list(ispecies)%name)
+      END IF
+      species_list(ispecies)%recombine = .FALSE.
+      RETURN
+    END IF
+
+    ! Attempt to read data file. Typical format (reduced dr_03.dat):
+    ! ! n   Temperature [K]
+    ! !  36 5.802259e+03 1.160452e+04 1.740678e+04 ... 
+    ! ! Q   Rate [m3/s]
+    ! !   1 3.984000e-19 2.381000e-19 1.724000e-19 ...
+    ! !   2 3.318000e-18 2.116000e-18 1.610000e-18 ...
+    ! !   3 8.023000e-18 5.281000e-18 4.099000e-18 ...
+    ! 
+    ! In this example: 
+    ! ! Top-left number 36 gives the number of temperature samples
+    ! ! Numbers after 36 give temperature sample points in Kelvin
+    ! ! Then we have the rates: left column for initial charge of transition
+    ! ! Numbers following Q are the rates at each temperature sample point
+    OPEN(UNIT = lu, &
+        FILE = TRIM(physics_table_location)  // "/rr_rates/"&
+        // file_name, &
+        STATUS = 'OLD')
+    
+    ! Read the number of temperature entries, ignoring first header line
+    READ(lu,*)
+    READ(lu,*) entries
+    species_list(ispecies)%recombine_array_size_rr = entries
+    CLOSE(lu)
+
+    ALLOCATE(species_list(ispecies)%recombine_temp_rr(entries))
+    ALLOCATE(species_list(ispecies)%recombine_rate_rr(entries))
+
+    ! Read the full first row of data
+    OPEN(UNIT = lu, &
+      FILE = TRIM(physics_table_location)  // "/rr_rates/"&
+      // file_name, &
+      STATUS = 'OLD')
+    READ(lu,*)
+    READ(lu,*) entries, species_list(ispecies)%recombine_temp_rr(:)
+
+    ! Skip to the line for the current species charge-state
+    q_int = NINT(species_list(ispecies)%charge / q0)
+    DO i_read = 1,q_int
+      READ(lu,*)
+    END DO
+
+    ! Read recombination rate [m³/s]
+    READ(lu,*) q_read, species_list(ispecies)%recombine_rate_rr(:)
+
+    CLOSE(lu)
+
+  END SUBROUTINE setup_rr_tables
+
+
+
   SUBROUTINE run_recombination
 
     ! This subroutine is called by the main PIC loop, and triggers the
@@ -135,6 +249,10 @@ CONTAINS
     ! pairs of valid electron and ion species which can recombine, and a
     ! subroutine is called to sample the recombination. Ions are added to the 
     ! correct species list, and electron macro-particles are removed
+    !
+    ! This subroutine only performs dielectronic and radiative recombination.
+    ! Three-body recombination is treated as a correction to collisional
+    ! ionisation rates.
 
     INTEGER :: ispecies, jspecies
     INTEGER :: electron_species, ion_species, recombined_species
@@ -142,6 +260,11 @@ CONTAINS
     TYPE(particle_list), POINTER :: p_list
     TYPE(particle_list) :: list_i_recombined
     LOGICAL :: i_is_ion, i_is_electron, calc_recombination
+
+    ! Only run this type of recombination for dielectronic or radiative
+    ! recombination
+    IF (.NOT. use_dielectronic_recombination .AND. .NOT. &
+      use_radiative_recombination) RETURN
 
     CALL create_empty_partlist(list_i_recombined)
 
@@ -244,7 +367,6 @@ CONTAINS
     REAL(num) :: sum_wi, n_i, inv_cell_volume, ion_mass, el_weight, ion_weight
     REAL(num) :: sum_we, el_temp, el_p_i(3)
     REAL(num) :: el_p2, mean_el_p2, mean_el_pxe
-    INTEGER :: n_temps
     REAL(num) :: ion_p2, gamma_i, beta_i
     REAL(num) :: recombine_frac, recombine_rate, uncombined_frac, recombine_no
     REAL(num) :: recombine_prob, recombined_ion_e_i
@@ -299,9 +421,6 @@ CONTAINS
     mean_el_p2 = mean_el_p2 / sum_we
     mean_el_pxe = mean_el_pxe / sum_we
 
-    ! Number of entries in the alpha(T) tables for this species
-    n_temps = species_list(ion_species)%recombine_array_size
-
     ! Each macro-e collision must pair to a macro-ion. To ensure there is always
     ! a macro-ion available, temporarily make the ion list circular
     list_i_in%tail%next => list_i_in%head
@@ -351,9 +470,21 @@ CONTAINS
           el_temp = mean_el_p2 / (3.0_num * m0 * kb)
         END IF
 
-        recombine_rate = find_value_from_table_1d_recombine(el_temp, n_temps, &
-            species_list(ion_species)%recombine_temp, &
-            species_list(ion_species)%recombine_rate, last_state)
+        recombine_rate = 0.0_num
+        IF (use_dielectronic_recombination) THEN
+          recombine_rate = recombine_rate + &
+              find_value_from_table_1d_recombine(el_temp, &
+              species_list(ion_species)%recombine_array_size_dr, &
+              species_list(ion_species)%recombine_temp_dr, &
+              species_list(ion_species)%recombine_rate_dr, last_state)
+        END IF
+        IF (use_radiative_recombination) THEN
+          recombine_rate = recombine_rate + &
+              find_value_from_table_1d_recombine(el_temp, &
+              species_list(ion_species)%recombine_array_size_rr, &
+              species_list(ion_species)%recombine_temp_rr, &
+              species_list(ion_species)%recombine_rate_rr, last_state)
+        END IF
 
         ! Expected number of recombined ions from the incident electron
         recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt)

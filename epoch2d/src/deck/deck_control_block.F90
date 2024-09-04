@@ -359,6 +359,15 @@ CONTAINS
         .OR. str_cmp(element, 'bsi')) THEN
       use_bsi = as_logical_print(value, element, errcode)
 
+    ELSE IF (str_cmp(element, 'use_radiative_recombination')) THEN
+      use_radiative_recombination = as_logical_print(value, element, errcode)
+
+    ELSE IF (str_cmp(element, 'use_dielectronic_recombination')) THEN
+      use_dielectronic_recombination = as_logical_print(value, element, errcode)
+
+    ELSE IF (str_cmp(element, 'use_three_body_recombination')) THEN
+      use_three_body_recombination = as_logical_print(value, element, errcode)
+
     ELSE IF (str_cmp(element, 'particle_tstart')) THEN
       particle_push_start_time = as_real_print(value, element, errcode)
 
