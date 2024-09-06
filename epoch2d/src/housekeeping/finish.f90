@@ -89,6 +89,9 @@ CONTAINS
         DEALLOCATE(species_list(i)%coll_ion_secondary_ke, STAT=stat)
         DEALLOCATE(species_list(i)%coll_ion_secondary_cdf, STAT=stat)
         DEALLOCATE(species_list(i)%coll_ion_mean_bind, STAT=stat)
+        IF (use_three_body_recombination) THEN 
+          DEALLOCATE(species_list(i)%ci_outer_cross_sec, STAT=stat)
+        END IF
       END IF
       IF (species_list(i)%recombine) THEN
         IF (use_dielectronic_recombination) THEN 

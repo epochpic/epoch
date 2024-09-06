@@ -196,6 +196,10 @@ CONTAINS
     ! Cross sections corresponding to electron energies [m**2]
     ALLOCATE(species_list(ispecies)%coll_ion_cross_sec(sample_el_in))
 
+    IF (use_three_body_recombination) THEN 
+      ALLOCATE(species_list(ispecies)%ci_outer_cross_sec(sample_el_in))
+    END IF
+
     ! Calculate electron energy and cross section at each table sample point
     DO isamp = 1, sample_el_in
 
@@ -262,6 +266,14 @@ CONTAINS
         sig_add = f_ion * gryzinski * sig_beli
         sig_mbell = sig_mbell + sig_add
 
+        ! Track contributions for outermost-shell separately for three-body
+        ! recombination
+        IF (n_qm == species_list(ispecies)%n .AND. &
+            l_qm == species_list(ispecies)%l .AND. &
+            use_three_body_recombination) THEN 
+              species_list(ispecies)%ci_outer_cross_sec(isamp) = sig_add
+        END IF
+
         ! Save cross section contribution from this bound electron
         cross_sec_parts(isamp, i_el) = sig_add
       END DO
@@ -310,6 +322,10 @@ CONTAINS
 
     ! Cross sections corresponding to electron energies [m**2]
     ALLOCATE(species_list(ispecies)%coll_ion_cross_sec(sample_el_in))
+
+    IF (use_three_body_recombination) THEN 
+      ALLOCATE(species_list(ispecies)%ci_outer_cross_sec(sample_el_in))
+    END IF
 
     ! Calculate electron energy and cross section at each table sample point
     DO isamp = 1, sample_el_in
@@ -364,6 +380,14 @@ CONTAINS
         ! Combine to RBEB cross section
         sig_add = rbeb_pre * rbeb_fac * (rbeb_1 + rbeb_2 + rbeb_3)
         sig_rbeb = sig_rbeb + sig_add
+
+        ! Track contributions for outermost-shell separately for three-body
+        ! recombination
+        IF (el_n(i_el) == species_list(ispecies)%n .AND. &
+            el_l(i_el) == species_list(ispecies)%l .AND. &
+            use_three_body_recombination) THEN 
+              species_list(ispecies)%ci_outer_cross_sec(isamp) = sig_add
+        END IF
 
         ! Save cross section contribution from this bound electron
         cross_sec_parts(isamp, i_el) = sig_add

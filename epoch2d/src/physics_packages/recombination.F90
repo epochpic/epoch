@@ -19,19 +19,24 @@
 ! recombination tables have been provided for a given atomic number and charge
 ! state.
 !
-! Here we consider dielectronic recombination, and radiative recombination. The 
+! Here we consider dielectronic, radiative and three-body recombination. The 
 ! electron temperature in a cell determines the recombination rates, which can 
 ! be used to obtain a recombination cross-section. Each electron in the cell has
-! a chance of triggering recombination.
+! a chance of triggering recombination. Radiative rates are taken from FLYCHK,
+! as are most dielectronic rates (some include contributions from JAC). The
+! 3-body recombination rates have been derived following the theory of Kremp's
+! "Quantum statistics of non-ideal plasmas", using detailed balance arguments.
 
 MODULE recombination
 
   USE calc_df
   USE collisions
+  USE collision_ionise
   
   IMPLICIT NONE
 
-  TYPE(interpolation_state), SAVE :: last_state
+  TYPE(interpolation_state), SAVE :: last_table_state
+  REAL(num) :: alpha_j, el_ne
 
 CONTAINS
 
@@ -39,11 +44,10 @@ CONTAINS
 
     ! This subroutine extracts di-electric recombination rates from files as a
     ! function of electron temperature, and saves them to the species in 1D 
-    ! arrays
+    ! arrays. Same is done for radiative recombination.
     !
-    ! Data is not known for recombination rates of each ion of each element, so
-    ! we must first check if the data is present. Switch recombination off in
-    ! ions where this is not known 
+    ! Three-body recombination requires collisional ionisation cross-sections,
+    ! so calculate these if collisional ionisation is switched off
 
     INTEGER :: ispecies, io, iu
 
@@ -75,6 +79,11 @@ CONTAINS
             species_list(ispecies)%make_secondary_list = .TRUE.
       END DO
     END IF
+
+    ! If three-body recombination is present, but not collisional ionisation, 
+    ! load the collisional ionisation cross section scripts anyway
+    IF (use_recombination .AND. use_three_body_recombination &
+    .AND. .NOT. use_collisional_ionisation) CALL setup_coll_ionise_tables 
 
   END SUBROUTINE setup_recombination_tables
 
@@ -250,9 +259,8 @@ CONTAINS
     ! subroutine is called to sample the recombination. Ions are added to the 
     ! correct species list, and electron macro-particles are removed
     !
-    ! This subroutine only performs dielectronic and radiative recombination.
-    ! Three-body recombination is treated as a correction to collisional
-    ! ionisation rates.
+    ! This subroutine can perform dielectronic, radiatiave, and 3-body 
+    ! recombination
 
     INTEGER :: ispecies, jspecies
     INTEGER :: electron_species, ion_species, recombined_species
@@ -330,6 +338,12 @@ CONTAINS
         DO iy = 1, ny
         DO ix = 1, nx
         IF (calc_recombination) THEN
+
+            ! Estimate collisional-ionisation rate (for 3-body recombination)
+            IF (use_three_body_recombination) THEN
+              CALL calculate_alpha_and_ne(ion_species, ix, iy)
+            END IF
+
             ! Apply recombination, moving recombined ions to the new particle 
             ! lists
             CALL recombine_ei(ion_species, electron_species, &
@@ -476,14 +490,18 @@ CONTAINS
               find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_dr, &
               species_list(ion_species)%recombine_temp_dr, &
-              species_list(ion_species)%recombine_rate_dr, last_state)
+              species_list(ion_species)%recombine_rate_dr, last_table_state)
         END IF
         IF (use_radiative_recombination) THEN
           recombine_rate = recombine_rate + &
               find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_rr, &
               species_list(ion_species)%recombine_temp_rr, &
-              species_list(ion_species)%recombine_rate_rr, last_state)
+              species_list(ion_species)%recombine_rate_rr, last_table_state)
+        END IF
+        IF (use_three_body_recombination) THEN
+          recombine_rate = recombine_rate + rate_3br(ion_species, el_temp, &
+              el_ne)
         END IF
 
         ! Expected number of recombined ions from the incident electron
@@ -565,6 +583,104 @@ CONTAINS
     DEALLOCATE(e_recombined, i_recombined)
 
   END SUBROUTINE recombine_ei
+
+
+
+  SUBROUTINE calculate_alpha_and_ne(ion_species, ix, iy)
+
+    ! Calculate alpha for the current particle species. This describes the rate 
+    ! of collisional ionisation for bound electrons in the outermost shell of
+    ! the recombined ion. This implies the recombined electron would go to the 
+    ! shell which, under the ground-state transition approximation, would lose
+    ! the electron upon ionisation. This is determined through comparison of the
+    ! ground-state configurations of the initial and recombined ions.
+    !
+    ! Subroutine also calculates the total electron number density in the cell
+
+    INTEGER, INTENT(IN) :: ion_species
+    INTEGER(i8), INTENT(IN) ::  ix, iy
+    INTEGER :: recombined_species, ispecies
+    TYPE(particle), POINTER :: current
+    REAL(num) :: e_weight_sum, sigma_v_sum, weight, sigma_ci_outer
+    REAL(num) :: el_p2, el_e, el_v, el_ke
+
+    recombined_species = species_list(ion_species)%recombine_to_species
+
+    ! Loop over all electrons from all electron species
+    e_weight_sum = 0.0_num
+    sigma_v_sum = 0.0_num
+    DO ispecies = 1, n_species
+      IF (species_list(ispecies)%electron) THEN
+        current => species_list(ispecies)%secondary_list(ix,iy)%head
+        DO WHILE(ASSOCIATED(current))
+#ifdef PER_SPECIES_WEIGHT
+          weight = species_list(ispecies)%weight
+#else
+          weight = current%weight
+#endif
+          e_weight_sum = e_weight_sum + weight
+
+          ! Electron speed
+          el_p2 = current%part_p(1)**2 + current%part_p(2)**2 &
+              + current%part_p(3)**2
+          el_e = SQRT(el_p2*c**2 + m0**2*c**4)
+          el_v = SQRT(el_p2) * c**2 / el_e
+
+          ! Calculate cross-section * ve, weighted to macro-weight
+          el_ke = el_e - m0*c**2
+          sigma_ci_outer = find_value_from_table_1d_coll(el_ke, &
+              sample_el_in, &
+              species_list(recombined_species)%coll_ion_incident_ke, &
+              species_list(recombined_species)%ci_outer_cross_sec, &
+              last_table_state)
+          sigma_v_sum = sigma_v_sum + weight * el_v * sigma_ci_outer
+
+          current=>current%next
+        END DO
+      END IF
+    END DO
+
+    ! Calculate alpha = <sigma * v>
+    alpha_j = sigma_v_sum / e_weight_sum
+
+    ! Save electron number density
+    el_ne = e_weight_sum / (dx * dy)
+
+  END SUBROUTINE calculate_alpha_and_ne
+
+
+
+  FUNCTION rate_3br(ispecies, e_temp, num_dens_e)
+
+    ! Calculate the three-body recombination rate. From Kremp's "Quantum 
+    ! statistics of non-ideal plasmas", we take:
+    ! (eq 2.232): dne/dt = (ne*ni*alpha_CI - ne^2*ni*beta_3BR + radiative terms)
+    ! (eq 8.47): beta_j = gj * lambda_e^3 * alpha_j * exp(Ieff / kT)
+    ! In a PIC code, we assume weakly coupled plasma, so Ieff ~ I
+    ! j refers to the nl state capturing the free e- in a groundstate capture
+    ! To find j, seek the shell which ionises from the recombined species
+
+    REAL(num) :: rate_3br
+    REAL(num), INTENT(IN) :: e_temp, num_dens_e 
+    INTEGER, INTENT(IN) :: ispecies
+    REAL(num) :: lambda_e, gj, ionise_energy, beta_j
+    INTEGER :: ion_l
+
+    ! Thermal de Broglie wavelength - Kremp (2.18)
+    lambda_e = SQRT(2.0_num * pi * h_bar**2 / (m0 * kb * e_temp))
+
+    ! Degeneracy of state j
+    ion_l = species_list(species_list(ispecies)%recombine_to_species)%l
+    gj = 2.0_num * (2.0_num * REAL(ion_l, num) + 1.0_num)
+
+    ! Ionisation energy of state j
+    ionise_energy = species_list(species_list(ispecies)%recombine_to_species)&
+        %ionisation_energy
+
+    beta_j = gj * lambda_e**3 * alpha_j * exp(ionise_energy/(kb * e_temp))
+    rate_3br = num_dens_e * beta_j
+
+  END FUNCTION
 
 
 

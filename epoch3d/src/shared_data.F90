@@ -273,7 +273,7 @@ MODULE shared_data
     INTEGER :: recombine_array_size_dr, recombine_array_size_rr
     REAL(num), ALLOCATABLE :: recombine_temp_dr(:), recombine_rate_dr(:)
     REAL(num), ALLOCATABLE :: recombine_temp_rr(:), recombine_rate_rr(:)
-
+    REAL(num), ALLOCATABLE :: ci_outer_cross_sec(:)
 
     ! Attached probes for this species
 #ifndef NO_PARTICLE_PROBES

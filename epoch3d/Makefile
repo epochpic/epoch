@@ -537,7 +537,7 @@ photons.o: photons.F90 partlist.o
 prefetch.o: prefetch.F90 shared_data.o
 probes.o: probes.F90 partlist.o $(SDFMOD)
 random_generator.o: random_generator.f90
-recombination.o: recombination.F90 calc_df.o collisions.o
+recombination.o: recombination.F90 calc_df.o collisions.o collision_ionise.o
 redblack_module.o: redblack_module.f90 partlist.o
 setup.o: setup.F90 balance.o boundary.o constants.o fields.o helper.o \
   injectors.o laser.o mpi_routines.o mpi_subtype_control.o particle_id_hash.o \
