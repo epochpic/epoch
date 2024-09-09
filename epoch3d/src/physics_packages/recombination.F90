@@ -38,6 +38,9 @@ MODULE recombination
   TYPE(interpolation_state), SAVE :: last_table_state
   REAL(num) :: alpha_j, el_ne
 
+  ! Super-cycled time-step
+  REAL(num) :: dt_recombine
+
 CONTAINS
 
   SUBROUTINE setup_recombination_tables
@@ -83,8 +86,10 @@ CONTAINS
     ! If three-body recombination is present, but not collisional ionisation, 
     ! load the collisional ionisation cross section scripts anyway
     IF (use_recombination .AND. use_three_body_recombination &
-        .AND. .NOT. use_collisional_ionisation) CALL setup_coll_ionise_tables 
+        .AND. .NOT. use_collisional_ionisation) CALL setup_coll_ionise_tables
 
+    dt_recombine = REAL(recombine_n_step, num) * dt
+        
   END SUBROUTINE setup_recombination_tables
 
 
@@ -268,10 +273,11 @@ CONTAINS
     TYPE(particle_list) :: list_i_recombined
     LOGICAL :: i_is_ion, i_is_electron, calc_recombination
 
-    ! Only run this type of recombination for dielectronic or radiative
-    ! recombination
+    ! Only run this type of recombination for dielectronic, three-body or 
+    ! radiative recombination
     IF (.NOT. use_dielectronic_recombination .AND. .NOT. &
-      use_radiative_recombination) RETURN
+      use_radiative_recombination .AND. .NOT. use_three_body_recombination) &
+      RETURN
 
     CALL create_empty_partlist(list_i_recombined)
 
@@ -508,7 +514,7 @@ CONTAINS
         END IF
 
         ! Expected number of recombined ions from the incident electron
-        recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt)
+        recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt_recombine)
         recombine_no = el_weight * recombine_prob * uncombined_frac
 
         ! Do we recombine a macro-ion?

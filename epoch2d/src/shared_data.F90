@@ -574,6 +574,7 @@ MODULE shared_data
   INTEGER :: coll_n_step = 1
   INTEGER :: back_n_step = 1
   INTEGER :: ci_n_step = 1
+  INTEGER :: recombine_n_step = 1
   REAL(num) :: coulomb_log, rel_cutoff, back_update_dt
   LOGICAL :: coulomb_log_auto, use_collisions
   LOGICAL :: use_background_collisions
