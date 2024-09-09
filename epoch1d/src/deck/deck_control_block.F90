@@ -436,6 +436,9 @@ CONTAINS
     ELSE IF (str_cmp(element, 'smooth_iterations')) THEN
       smooth_its = as_integer_print(value, element, errcode)
 
+    ELSE IF (str_cmp(element, 'recombine_n_step')) THEN
+      recombine_n_step = as_integer_print(value, element, errcode)
+
     ELSE IF (str_cmp(element, 'smooth_compensation')) THEN
       IF (as_logical_print(value, element, errcode)) smooth_comp_its = 1
 
