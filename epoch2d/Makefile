@@ -234,6 +234,9 @@ DEFINES := $(DEFINE)
 # Don't generate any output at all. Useful for benchmarking.
 #DEFINES += $(D)NO_IO
 
+# Track ionisation/recombination rates on each particle
+#DEFINES += $(D)TRANSITION_RATES
+
 # Specify charge and mass per particle rather than per species.
 # This is a legacy option which will be removed soon.
 #DEFINES += $(D)PER_PARTICLE_CHARGE_MASS
@@ -517,8 +520,8 @@ helper.o: helper.F90 balance.o boundary.o deltaf_loader.o partlist.o simple_io.o
 ic_module.o: ic_module.f90 helper.o shared_data.o
 injectors.o: injectors.F90 evaluate.o file_injectors.o particle_temperature.o \
 	partlist.o random_generator.o utilities.o
-ionise.o: ionise.F90 boundary.o numerics.o partlist.o random_generator.o \
-  utilities.o
+ionise.o: ionise.F90 boundary.o calc_df.o numerics.o partlist.o \
+  random_generator.o utilities.o
 iterators.o: iterators.F90 particle_id_hash.o particle_pointer_advance.o \
   partlist.o
 laser.o: laser.f90 custom_laser.o evaluate.o

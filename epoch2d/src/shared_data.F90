@@ -136,6 +136,13 @@ MODULE shared_data
 #if defined(PROBE_TIME)
     REAL(num) :: probe_time
 #endif
+#ifdef TRANSITION_RATES
+    REAL(num) :: rate_fi
+    REAL(num) :: rate_ci
+    REAL(num) :: rate_dr
+    REAL(num) :: rate_rr
+    REAL(num) :: rate_3br
+#endif
   END TYPE particle
 
   ! Data for migration between species

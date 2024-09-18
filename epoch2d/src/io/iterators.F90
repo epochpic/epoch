@@ -306,6 +306,39 @@ CONTAINS
         END DO
 #endif
 
+#ifdef TRANSITION_RATES
+      CASE (c_dump_part_rate_fi)
+        DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+          part_count = part_count + 1
+          array(part_count) = cur%rate_fi
+          cur => cur%next
+        END DO
+      CASE (c_dump_part_rate_ci)
+        DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+          part_count = part_count + 1
+          array(part_count) = cur%rate_ci
+          cur => cur%next
+        END DO
+      CASE (c_dump_part_rate_dr)
+        DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+          part_count = part_count + 1
+          array(part_count) = cur%rate_dr
+          cur => cur%next
+        END DO
+      CASE (c_dump_part_rate_rr)
+        DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+          part_count = part_count + 1
+          array(part_count) = cur%rate_rr
+          cur => cur%next
+        END DO
+      CASE (c_dump_part_rate_3br)
+        DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+          part_count = part_count + 1
+          array(part_count) = cur%rate_3br
+          cur => cur%next
+        END DO
+#endif
+
 #ifdef PHOTONS
       CASE (c_dump_part_opdepth)
         DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
