@@ -201,13 +201,13 @@ DEFINES := $(DEFINE)
 #DEFINES += $(D)NO_PARTICLE_PROBES
 
 # Probes will also output the time particles cross the probe
-DEFINES += $(D)PROBE_TIME
+#DEFINES += $(D)PROBE_TIME
 
 # Use second order particle weighting (default is third order).
 #DEFINES += $(D)PARTICLE_SHAPE_TOPHAT
 
 # Use fifth order particle weighting (default is third order).
-DEFINES += $(D)PARTICLE_SHAPE_BSPLINE3
+#DEFINES += $(D)PARTICLE_SHAPE_BSPLINE3
 
 # Include a unique global particle ID. The first flag defines the ID using
 # an 8-byte integer, the second uses 4-bytes.
@@ -237,6 +237,9 @@ DEFINES += $(D)PARTICLE_SHAPE_BSPLINE3
 # Bypass the main simulation and only perform collision tests.
 # This flag should only ever be used for testing purposes.
 #DEFINES += $(D)COLLISIONS_TEST
+
+# Track ionisation/recombination rates on each particle
+#DEFINES += $(D)TRANSITION_RATES
 
 # Specify charge and mass per particle rather than per species.
 # This is a legacy option which will be removed soon.
@@ -521,8 +524,8 @@ helper.o: helper.F90 balance.o boundary.o deltaf_loader.o partlist.o simple_io.o
 ic_module.o: ic_module.f90 helper.o shared_data.o
 injectors.o: injectors.F90 evaluate.o file_injectors.o particle_temperature.o \
 	partlist.o random_generator.o utilities.o
-ionise.o: ionise.F90 boundary.o numerics.o partlist.o random_generator.o \
-  utilities.o
+ionise.o: ionise.F90 boundary.o calc_df.o numerics.o partlist.o \
+  random_generator.o utilities.o
 iterators.o: iterators.F90 particle_id_hash.o particle_pointer_advance.o \
   partlist.o
 laser.o: laser.f90 custom_laser.o evaluate.o

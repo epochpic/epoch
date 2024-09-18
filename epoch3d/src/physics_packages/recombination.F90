@@ -391,7 +391,8 @@ CONTAINS
     REAL(num) :: sum_we, el_temp, el_p_i(3)
     REAL(num) :: el_p2, mean_el_p2, mean_el_pxe
     REAL(num) :: ion_p2, gamma_i, beta_i
-    REAL(num) :: recombine_frac, recombine_rate, uncombined_frac, recombine_no
+    REAL(num) :: recombine_frac, uncombined_frac, recombine_no
+    REAL(num) :: recombine_rate, ion_rate_dr, ion_rate_rr, ion_rate_3br
     REAL(num) :: recombine_prob, recombined_ion_e_i
 
     ! Ignore collisions from empty species
@@ -494,24 +495,33 @@ CONTAINS
         END IF
 
         recombine_rate = 0.0_num
+        ion_rate_dr = 0.0_num
+        ion_rate_rr = 0.0_num
+        ion_rate_3br = 0.0_num
         IF (use_dielectronic_recombination) THEN
-          recombine_rate = recombine_rate + &
-              find_value_from_table_1d_recombine(el_temp, &
+          ion_rate_dr = find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_dr, &
               species_list(ion_species)%recombine_temp_dr, &
               species_list(ion_species)%recombine_rate_dr, last_table_state)
+          recombine_rate = recombine_rate + ion_rate_dr   
         END IF
         IF (use_radiative_recombination) THEN
-          recombine_rate = recombine_rate + &
-              find_value_from_table_1d_recombine(el_temp, &
+          ion_rate_rr = find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_rr, &
               species_list(ion_species)%recombine_temp_rr, &
               species_list(ion_species)%recombine_rate_rr, last_table_state)
+          recombine_rate = recombine_rate + ion_rate_rr
         END IF
         IF (use_three_body_recombination) THEN
-          recombine_rate = recombine_rate + rate_3br(ion_species, el_temp, &
-              el_ne)
+          ion_rate_3br = rate_3br(ion_species, el_temp, el_ne)
+          recombine_rate = recombine_rate + ion_rate_3br
         END IF
+
+#ifdef TRANSITION_RATES
+        ion%rate_dr = ion_rate_dr 
+        ion%rate_rr = ion_rate_rr
+        ion%rate_3br = ion_rate_3br
+#endif
 
         ! Expected number of recombined ions from the incident electron
         recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt_recombine)

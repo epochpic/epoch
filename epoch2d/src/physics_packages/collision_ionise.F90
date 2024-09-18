@@ -1001,6 +1001,10 @@ CONTAINS
         ! Probability of ionisation from a real electron (not macro-electron)
         ionise_prob = 1.0_num - EXP(- n_i * eiics * el_v_i * dt_ci)
 
+#ifdef TRANSITION_RATES
+        ion%rate_ci = eiics * el_v_i
+#endif
+
         ! Expected number of secondary electrons created by this macro-electron
         sec_no = el_weight * unionised_frac * ionise_prob
 
