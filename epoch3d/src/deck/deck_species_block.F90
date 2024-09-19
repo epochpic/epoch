@@ -1233,13 +1233,20 @@ CONTAINS
     ! ground-states - one removed and one changing orbitals. Here, we still use
     ! (n,l) of the vanishing electron. The format of "ion_l.table" and
     ! "ion_n.table" matches "ionisation_energies.table"
+    !
+    ! Sometimes, the user may provide their own occupancy numbers. If such a
+    ! file is found in the TABLES/occupancy_numbers directory, then the
+    ! vanishing electron (n,l) shell will be deduced as described above.
 
     INTEGER, INTENT(IN) :: atomic_no, ion_state, ionise_num
     REAL(num), INTENT(OUT) :: ionise_energy(:)
     INTEGER, INTENT(OUT) :: ion_l(:), ion_n(:)
     REAL(num), ALLOCATABLE :: full_line_energy(:)
+    REAL(num) :: full_line_occ_no(1:30)
     INTEGER, ALLOCATABLE :: full_line_l(:), full_line_n(:)
-    INTEGER :: i_file, io, iu
+    INTEGER :: first_occ_no(1:29), next_occ_no(1:29)
+    CHARACTER(LEN=3) :: z_string
+    INTEGER :: i_file, io, iu, iq
     LOGICAL :: exists
 
     IF (atomic_no < 1 .OR. atomic_no > 100) THEN
@@ -1332,6 +1339,111 @@ CONTAINS
     ion_l = full_line_l(ion_state+1:ion_state+ionise_num)
     ion_n = full_line_n(ion_state+1:ion_state+ionise_num)
     DEALLOCATE(full_line_energy, full_line_l, full_line_n)
+
+    ! Open occupancy number file if one is present, as these will overwrite the
+    ! FLYCHK n and l values
+    IF (atomic_no < 10) THEN
+      WRITE(z_string, '(I1)') atomic_no
+    ELSE IF (atomic_no < 100) THEN
+      WRITE(z_string, '(I2)') atomic_no
+    ELSE IF (atomic_no == 100) THEN
+      WRITE(z_string, '(I3)') atomic_no
+    END IF
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/occupancy_numbers/occ_no_"&
+        // z_string, EXIST=exists)
+    IF (exists) THEN
+      OPEN(UNIT = lu+3, &
+          FILE = TRIM(physics_table_location)//'/occupancy_numbers/occ_no_'//&
+          z_string, STATUS = 'OLD')
+    ELSE
+      ! Exit if no occupancy number file is provided
+      RETURN
+    END IF
+
+    ! Skip the occupancy numbers for charge-states outside the ionisation chain
+    ! Note that ion_state = 0 corresponds to line 2
+    DO i_file = 1, ion_state+1
+      READ(lu+3,*)
+    END DO
+
+    ! Occupancy numbers of the base-state
+    READ(lu+3,*) full_line_occ_no(1:30)
+    first_occ_no = full_line_occ_no(2:30)
+
+    ! Loop over ionisation states, saving original and ionised configurations
+    ! Identify the first state which loses electrons, and save the (n,l) value
+    ! Repeat over as many ionisation states as the user has requested
+    DO iq = 1, ionise_num
+      IF (ion_state + iq < atomic_no) THEN
+        READ(lu+3,*) full_line_occ_no(1:30)
+        next_occ_no = full_line_occ_no(2:30)
+      ELSE
+        ! Final state is fully ionised, but isn't in the file
+        next_occ_no = 0.0_num
+      END IF
+
+      ! Columns are ordered: 1s,2s,2p,2p*,3s,3p,3p*,4s,3d,3d*,4p,4p*,5s,4d,4d*,
+      !                      5p,5p*,6s,4f,4f*,5d,5d*,6p,6p*,7s,5f,5f*,6d,6d*
+      IF (first_occ_no(1) > next_occ_no(1)) THEN
+        ion_n(iq) = 1
+        ion_l(iq) = 0
+      ELSE IF (first_occ_no(2) > next_occ_no(2)) THEN
+        ion_n(iq) = 2
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(3:4)) > SUM(next_occ_no(3:4))) THEN
+        ion_n(iq) = 2
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(5) > next_occ_no(5)) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(6:7)) > SUM(next_occ_no(6:7))) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(8) > next_occ_no(8)) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(9:10)) > SUM(next_occ_no(9:10))) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(11:12)) > SUM(next_occ_no(11:12))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(13) > next_occ_no(13)) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(14:15)) > SUM(next_occ_no(14:15))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(16:17)) > SUM(next_occ_no(16:17))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(18) > next_occ_no(18)) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(19:20)) > SUM(next_occ_no(19:20))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 3
+      ELSE IF (SUM(first_occ_no(21:22)) > SUM(next_occ_no(21:22))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(23:24)) > SUM(next_occ_no(23:24))) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(25) > next_occ_no(25)) THEN
+        ion_n(iq) = 7
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(26:27)) > SUM(next_occ_no(26:27))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 3
+      ELSE IF (SUM(first_occ_no(28:29)) > SUM(next_occ_no(28:29))) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 2
+      END IF
+
+      first_occ_no = next_occ_no
+    END DO
+
+    CLOSE(lu+3)
 
   END SUBROUTINE read_ionisation_data
 
