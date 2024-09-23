@@ -35,7 +35,8 @@ MODULE recombination
   
   IMPLICIT NONE
 
-  TYPE(interpolation_state), SAVE :: last_table_state
+  TYPE(interpolation_state), SAVE :: last_table_state_dr, last_table_state_rr
+  TYPE(interpolation_state), SAVE :: last_table_state_ci
   REAL(num) :: alpha_j, el_ne
 
   ! Super-cycled time-step
@@ -502,14 +503,14 @@ CONTAINS
           ion_rate_dr = find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_dr, &
               species_list(ion_species)%recombine_temp_dr, &
-              species_list(ion_species)%recombine_rate_dr, last_table_state)
+              species_list(ion_species)%recombine_rate_dr, last_table_state_dr)
           recombine_rate = recombine_rate + ion_rate_dr   
         END IF
         IF (use_radiative_recombination) THEN
           ion_rate_rr = find_value_from_table_1d_recombine(el_temp, &
               species_list(ion_species)%recombine_array_size_rr, &
               species_list(ion_species)%recombine_temp_rr, &
-              species_list(ion_species)%recombine_rate_rr, last_table_state)
+              species_list(ion_species)%recombine_rate_rr, last_table_state_rr)
           recombine_rate = recombine_rate + ion_rate_rr
         END IF
         IF (use_three_body_recombination) THEN
@@ -651,7 +652,7 @@ CONTAINS
               sample_el_in, &
               species_list(recombined_species)%coll_ion_incident_ke, &
               species_list(recombined_species)%ci_outer_cross_sec, &
-              last_table_state)
+              last_table_state_ci)
           sigma_v_sum = sigma_v_sum + weight * el_v * sigma_ci_outer
 
           current=>current%next
@@ -723,7 +724,7 @@ CONTAINS
     i1 = state%ix1
     i2 = state%ix2
     found = .FALSE.
-    IF (i1 /= i2) THEN
+    IF (i1 /= i2 .AND. i2 <= nx .AND. i1 < nx) THEN
       xdif1 = x(i1) - x_in
       xdif2 = x(i2) - x_in
       IF (xdif1 * xdif2 < 0) THEN
