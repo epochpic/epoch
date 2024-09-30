@@ -380,7 +380,7 @@ CONTAINS
     INTEGER(i8) :: e_count, ion_count, i_ion, i_el, recombined_count
     LOGICAL, ALLOCATABLE :: e_recombined(:), i_recombined(:)
     LOGICAL :: ion_at_rest
-    LOGICAL :: create_recombination, e_collide_again
+    LOGICAL :: recombine_electron, recombine_ion, e_collide_again
     REAL(num) :: sum_wi, n_i, inv_cell_volume, ion_mass, el_weight, ion_weight
     REAL(num) :: sum_we, el_temp, el_p_i(3)
     REAL(num) :: el_p2, mean_el_p2, mean_el_pxe
@@ -519,13 +519,13 @@ CONTAINS
 
         ! Expected number of recombined ions from the incident electron
         recombine_prob = 1.0_num - EXP(-recombine_rate * n_i * dt_recombine)
-        recombine_no = el_weight * recombine_prob * uncombined_frac 
+        recombine_no = el_weight * recombine_prob * uncombined_frac
 
         ! Do we recombine a macro-ion?
         IF (recombine_no > ion_weight) THEN
           ! Weight of macro-ion less than expected number of recombinations
           ! Recombine macro-ion but find a new target for macro-electron
-          create_recombination = .TRUE.
+          recombine_ion = .TRUE.
 
           ! Save fraction of recombinations left to make
           recombine_frac = ion_weight / recombine_no
@@ -533,7 +533,7 @@ CONTAINS
         ELSE
           ! Weight of macro-ion >= expected number of recombinations
           ! Sample the probability of recombination of the macro-ion
-          create_recombination = (random() <= recombine_no / ion_weight)
+          recombine_ion = (random() <= recombine_no / ion_weight)
 
           ! Electron has created all the recombinations it will (if any), do not 
           ! re-collide
@@ -541,14 +541,18 @@ CONTAINS
         END IF
 
         ! Mark particles as recombined
-        IF (create_recombination) THEN 
+        IF (recombine_ion) THEN
           i_recombined(i_ion) = .TRUE.
-          e_recombined(i_el) = .TRUE.
           recombined_count = recombined_count + 1
           n_i = n_i - ion_weight * inv_cell_volume
 
           ! Conserve momentum of recombined particle
           ion%part_p = ion%part_p + electron%part_p
+        END IF
+
+        ! Sample electron recombination
+        IF (.NOT. e_collide_again) THEN 
+          e_recombined(i_el) = (random() <= recombine_prob)
         END IF
 
         ! Check if any ions remain for recombination by the current electron
