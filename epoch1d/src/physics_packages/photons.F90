@@ -591,7 +591,7 @@ CONTAINS
               dir_z, part_e)
 
           current%optical_depth = current%optical_depth &
-              - delta_optical_depth_photon(chi_val, part_e)
+              - pair_upscaling*delta_optical_depth_photon(chi_val, part_e)
           ! If optical depth dropped below zero generate pair...
           IF (current%optical_depth <= 0.0_num) THEN
             CALL generate_pair(current, chi_val, photon_species, &
@@ -1071,17 +1071,19 @@ CONTAINS
     new_positron%optical_depth_tri = reset_optical_depth()
 #endif
 
-    new_electron%weight = generating_photon%weight
-    new_positron%weight = generating_photon%weight
+    new_electron%weight = generating_photon%weight / pair_upscaling
+    new_positron%weight = generating_photon%weight / pair_upscaling
 
     CALL add_particle_to_partlist(species_list(ielectron)%attached_list, &
         new_electron)
     CALL add_particle_to_partlist(species_list(ipositron)%attached_list, &
         new_positron)
 
-    ! Remove photon
-    CALL remove_particle_from_partlist(species_list(iphoton)%attached_list, &
+    ! Remove photon if weight is below 1/upscaling
+    IF (random()*pair_upscaling < 1.0_num)
+      CALL remove_particle_from_partlist(species_list(iphoton)%attached_list, &
         generating_photon)
+    ENDIF
 
     DEALLOCATE(generating_photon)
 

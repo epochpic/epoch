@@ -197,7 +197,7 @@ PROGRAM pic
     push = (time >= particle_push_start_time)
 #ifdef PHOTONS
     IF (push .AND. use_qed .AND. time > qed_start_time) THEN
-      CALL qed_update_poisson()
+      CALL qed_update_optical_depth()
     END IF
 #endif
 
