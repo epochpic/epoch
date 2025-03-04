@@ -684,7 +684,7 @@ CONTAINS
           IF (pair_weight > 0) THEN
             CALL generate_weighted_pair(current, chi_val, photon_species, &
                 breit_wheeler_electron_species, breit_wheeler_positron_species, &
-		current%weight * pair_weight / pair_upscaling)
+                current%weight * pair_weight / pair_upscaling)
           END IF
           current => next_pt
         END DO
@@ -1080,12 +1080,11 @@ CONTAINS
         new_positron)
 
     ! Remove photon if weight is below 1/upscaling
-    IF (random()*pair_upscaling < 1.0_num)
+    IF (random()*pair_upscaling < 1.0_num) THEN
       CALL remove_particle_from_partlist(species_list(iphoton)%attached_list, &
         generating_photon)
+      DEALLOCATE(generating_photon)
     ENDIF
-
-    DEALLOCATE(generating_photon)
 
   END SUBROUTINE generate_pair
 
