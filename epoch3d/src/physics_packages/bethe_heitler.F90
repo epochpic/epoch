@@ -334,7 +334,7 @@ CONTAINS
           photon)
       CALL destroy_particle(photon)
     ELSE 
-      photon%optical_depth_bremsstrahlung = -LOG(random())
+      photon%optical_depth_bremsstrahlung = photon%optical_depth_bremsstrahlung -LOG(random())
     END IF
 
   END SUBROUTINE generate_pair
