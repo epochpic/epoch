@@ -164,7 +164,7 @@ CONTAINS
 
             ! If photon optical depth drops below 0, create an e-/e+ pair and
             ! remove the photon from the simulation
-            IF (photon%optical_depth_bremsstrahlung <= 0.0_num) THEN
+            IF (photon%optical_depth_bremsstrahlung < 0.0_num) THEN
               CALL generate_pair(photon, z_temp, &
                   bethe_heitler_electron_species, &
                   bethe_heitler_positron_species, ispecies)

@@ -1220,9 +1220,9 @@ CONTAINS
         minpos = x_grid_mins(iproc) - dx * 0.5_num
       END IF
       IF (iproc == nprocx - 1) THEN
-        maxpos = x_grid_maxs(iproc) + dx * (0.5_num + png)
+        maxpos = x_global(cell_x_max(iproc+1)+1) + dx * (png - 0.5_num)
       ELSE
-        maxpos = x_grid_maxs(iproc) + dx * 0.5_num
+        maxpos = x_global(cell_x_max(iproc+1)+1) - dx * 0.5_num
       END IF
       IF (part%part_pos >= minpos .AND. part%part_pos < maxpos) THEN
         coords(c_ndims) = iproc

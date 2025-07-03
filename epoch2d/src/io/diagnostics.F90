@@ -247,41 +247,42 @@ CONTAINS
     timer_walltime = -1.0_num
     IF (step /= last_step) THEN
       last_step = step
-      IF (rank == 0 .AND. stdout_frequency > 0 &
-          .AND. MOD(step, stdout_frequency) == 0) THEN
-        timer_walltime = MPI_WTIME()
-        elapsed_time = timer_walltime - walltime_started
+      IF (rank == 0 .AND. stdout_frequency > 0) THEN
+        IF (MOD(step, stdout_frequency) == 0) THEN
+          timer_walltime = MPI_WTIME()
+          elapsed_time = timer_walltime - walltime_started
 
-        IF (reset_walltime) THEN
-          CALL create_timestring(elapsed_time, timestring)
-          elapsed_time = elapsed_time + old_elapsed_time
-        ELSE
-          elapsed_time = elapsed_time + old_elapsed_time
-          CALL create_timestring(elapsed_time, timestring)
-        END IF
-
-        IF (print_eta_string) THEN
-          eta_timestring = ''
-          IF (time > c_tiny) THEN
-            ! If nsteps is specified and the limit to runtime, use it to
-            ! calculate ETA. Otherwise use t_end.
-            IF (nsteps /= -1 .AND. nsteps * dt < t_end) THEN
-              eta_time = (nsteps * dt - time) * elapsed_time / time
-            ELSE
-              eta_time = (t_end - time) * elapsed_time / time
-            END IF
-            CALL create_timestring(eta_time, eta_timestring)
+          IF (reset_walltime) THEN
+            CALL create_timestring(elapsed_time, timestring)
+            elapsed_time = elapsed_time + old_elapsed_time
+          ELSE
+            elapsed_time = elapsed_time + old_elapsed_time
+            CALL create_timestring(elapsed_time, timestring)
           END IF
-          WRITE(*, '(''Time'', g14.6, '', iteration'', i9, '' after'', &
-              & a, '', ETA'',a)') time, step, timestring, eta_timestring
-        ELSE
-          WRITE(*, '(''Time'', g20.12, '' and iteration'', i12, '' after'', &
-              & a)') time, step, timestring
-        END IF
-        IF (skipped_any_set) THEN
-          WRITE(*,*) 'One or more subset ranges were empty: ', &
-                'their fields were not output.'
-          skipped_any_set = .FALSE.
+
+          IF (print_eta_string) THEN
+            eta_timestring = ''
+            IF (time > c_tiny) THEN
+              ! If nsteps is specified and the limit to runtime, use it to
+              ! calculate ETA. Otherwise use t_end.
+              IF (nsteps /= -1 .AND. nsteps * dt < t_end) THEN
+                eta_time = (nsteps * dt - time) * elapsed_time / time
+              ELSE
+                eta_time = (t_end - time) * elapsed_time / time
+              END IF
+              CALL create_timestring(eta_time, eta_timestring)
+            END IF
+            WRITE(*, '(''Time'', g14.6, '', iteration'', i9, '' after'', &
+                & a, '', ETA'',a)') time, step, timestring, eta_timestring
+          ELSE
+            WRITE(*, '(''Time'', g20.12, '' and iteration'', i12, '' after'', &
+                & a)') time, step, timestring
+          END IF
+          IF (skipped_any_set) THEN
+            WRITE(*,*) 'One or more subset ranges were empty: ', &
+                  'their fields were not output.'
+            skipped_any_set = .FALSE.
+          END IF
         END IF
       END IF
     END IF

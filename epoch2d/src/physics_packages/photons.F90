@@ -564,14 +564,14 @@ CONTAINS
               - delta_optical_depth_tri(eta, gamma_rel)
 #endif
           ! If optical depth dropped below zero generate photon...
-          IF (current%optical_depth <= 0.0_num) THEN
+          IF (current%optical_depth < 0.0_num) THEN
             CALL generate_photon(current, photon_species, eta)
             ! ... and reset optical depth
             current%optical_depth = reset_optical_depth()
           END IF
 
 #ifdef TRIDENT_PHOTONS
-          IF (current%optical_depth_tri <= 0.0_num) THEN
+          IF (current%optical_depth_tri < 0.0_num) THEN
             CALL generate_pair_tri(current, trident_electron_species, &
                 trident_positron_species)
             ! ... and reset optical depth
@@ -601,7 +601,7 @@ CONTAINS
           current%optical_depth = current%optical_depth &
               - delta_optical_depth_photon(chi_val, part_e)
           ! If optical depth dropped below zero generate pair...
-          IF (current%optical_depth <= 0.0_num) THEN
+          IF (current%optical_depth < 0.0_num) THEN
             CALL generate_pair(current, chi_val, photon_species, &
                 breit_wheeler_electron_species, breit_wheeler_positron_species)
           END IF

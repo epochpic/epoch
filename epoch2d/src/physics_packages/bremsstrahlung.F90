@@ -640,7 +640,7 @@ CONTAINS
 
             ! If optical depth dropped below zero generate photon and reset
             ! optical depth
-            IF (current%optical_depth_bremsstrahlung <= 0.0_num) THEN
+            IF (current%optical_depth_bremsstrahlung < 0.0_num) THEN
               CALL generate_photon(current, z_temp, &
                   bremsstrahlung_photon_species)
               current%optical_depth_bremsstrahlung = reset_optical_depth()
