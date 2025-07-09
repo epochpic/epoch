@@ -53,7 +53,7 @@ CONTAINS
     ! Three-body recombination requires collisional ionisation cross-sections,
     ! so calculate these if collisional ionisation is switched off
 
-    INTEGER :: ispecies, io, iu
+    INTEGER :: ispecies
 
     ! Loop through all species which are set to recombine
     DO ispecies = 1, n_species
@@ -387,14 +387,14 @@ CONTAINS
     INTEGER(i8) :: e_count, ion_count, i_ion, i_el, recombined_count
     LOGICAL, ALLOCATABLE :: e_recombined(:), i_recombined(:)
     LOGICAL :: ion_at_rest
-    LOGICAL :: recombine_electron, recombine_ion, e_collide_again
+    LOGICAL :: recombine_ion, e_collide_again
     REAL(num) :: sum_wi, n_i, inv_cell_volume, ion_mass, el_weight, ion_weight
-    REAL(num) :: sum_we, el_temp, el_p_i(3)
+    REAL(num) :: sum_we, el_temp
     REAL(num) :: el_p2, mean_el_p2, mean_el_pxe
     REAL(num) :: ion_p2, gamma_i, beta_i
     REAL(num) :: recombine_frac, uncombined_frac, recombine_no
     REAL(num) :: recombine_rate, ion_rate_dr, ion_rate_rr, ion_rate_3br
-    REAL(num) :: recombine_prob, recombined_ion_e_i
+    REAL(num) :: recombine_prob
 
     ! Ignore collisions from empty species
     e_count = list_e_in%count

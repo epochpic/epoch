@@ -1230,7 +1230,7 @@ CONTAINS
     REAL(num), INTENT(OUT) :: ionise_energy(:)
     INTEGER, INTENT(OUT) :: ion_l(:), ion_n(:)
     REAL(num), ALLOCATABLE :: full_line_energy(:)
-    REAL(num) :: full_line_occ_no(1:30)
+    INTEGER :: full_line_occ_no(1:30)
     INTEGER, ALLOCATABLE :: full_line_l(:), full_line_n(:)
     INTEGER :: first_occ_no(1:29), next_occ_no(1:29)
     CHARACTER(LEN=3) :: z_string
