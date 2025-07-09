@@ -515,6 +515,12 @@ CONTAINS
     ELSE IF (str_cmp(name, 'log_base')) THEN
       as_function = c_func_log_base
 
+    ELSE IF (str_cmp(name, 'min')) THEN
+      as_function = c_func_min
+
+    ELSE IF (str_cmp(name, 'max')) THEN
+      as_function = c_func_max
+
     ELSE IF (str_cmp(name, 'gauss')) THEN
       as_function = c_func_gauss
 
