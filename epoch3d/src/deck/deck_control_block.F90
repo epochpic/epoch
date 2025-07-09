@@ -377,6 +377,15 @@ CONTAINS
         .OR. str_cmp(element, 'bsi')) THEN
       use_bsi = as_logical_print(value, element, errcode)
 
+    ELSE IF (str_cmp(element, 'use_radiative_recombination')) THEN
+      use_radiative_recombination = as_logical_print(value, element, errcode)
+
+    ELSE IF (str_cmp(element, 'use_dielectronic_recombination')) THEN
+      use_dielectronic_recombination = as_logical_print(value, element, errcode)
+
+    ELSE IF (str_cmp(element, 'use_three_body_recombination')) THEN
+      use_three_body_recombination = as_logical_print(value, element, errcode)
+
     ELSE IF (str_cmp(element, 'particle_tstart')) THEN
       particle_push_start_time = as_real_print(value, element, errcode)
 
@@ -474,6 +483,9 @@ CONTAINS
 
     ELSE IF (str_cmp(element, 'smooth_iterations')) THEN
       smooth_its = as_integer_print(value, element, errcode)
+
+    ELSE IF (str_cmp(element, 'recombine_n_step')) THEN
+      recombine_n_step = as_integer_print(value, element, errcode)
 
     ELSE IF (str_cmp(element, 'smooth_compensation')) THEN
       IF (as_logical_print(value, element, errcode)) smooth_comp_its = 1

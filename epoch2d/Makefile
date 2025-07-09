@@ -238,6 +238,9 @@ DEFINES := $(DEFINE)
 # This flag should only ever be used for testing purposes.
 #DEFINES += $(D)COLLISIONS_TEST
 
+# Track ionisation/recombination rates on each particle
+#DEFINES += $(D)TRANSITION_RATES
+
 # Specify charge and mass per particle rather than per species.
 # This is a legacy option which will be removed soon.
 #DEFINES += $(D)PER_PARTICLE_CHARGE_MASS
@@ -323,10 +326,11 @@ SRCFILES = background_collisions.F90 balance.F90 bethe_heitler.F90 \
 	mpi_routines.F90 mpi_subtype_control.f90 numerics.f90 particle_id_hash.F90 \
 	particle_migration.F90 particle_pointer_advance.f90 particle_temperature.F90 \
 	particles.F90 partlist.F90 photons.F90 prefetch.F90 probes.F90 \
-	random_generator.f90 redblack_module.f90 setup.F90 shape_functions.F90 \
-	shared_data.F90 shunt.F90 simple_io.F90 split_particle.F90 stack.f90 \
-	strings.f90 strings_advanced.f90 terminal_controls.F90 timer.f90 \
-	tokenizer_blocks.f90 utilities.f90 version_data.F90 welcome.F90 window.F90
+	random_generator.f90 recombination.F90 redblack_module.f90 setup.F90 \
+  shape_functions.F90 shared_data.F90 shunt.F90 simple_io.F90 \
+  split_particle.F90 stack.f90 strings.f90 strings_advanced.f90 \
+  terminal_controls.F90 timer.f90 tokenizer_blocks.f90 utilities.f90 \
+  version_data.F90 welcome.F90 window.F90
 
 OBJFILES := $(SRCFILES:.f90=.o)
 OBJFILES := $(OBJFILES:.F90=.o)
@@ -506,8 +510,8 @@ dist_fn.o: dist_fn.F90 mpi_subtype_control.o particles.o $(SDFMOD)
 epoch2d.o: epoch2d.F90 background_collisions.o balance.o bremsstrahlung.o \
 	calc_df.o collisions.o collision_ionise.o current_smooth.o deck.o \
 	diagnostics.o fields.o finish.o helper.o ic_module.o injectors.o ionise.o \
-	mpi_routines.o particle_migration.o particles.o photons.o setup.o \
-	split_particle.o welcome.o window.o
+	mpi_routines.o particle_migration.o particles.o photons.o recombination.o \
+  setup.o split_particle.o welcome.o window.o
 	$(FC) -c $(FFLAGS) $(FLTCONS) -o $(OBJDIR)/$@ $(PREPROFLAGS) $<
 evaluate.o: evaluate.F90 shunt.o stack.o
 evaluator_blocks.o: evaluator_blocks.F90 custom_parser.o stack.o strings.o
@@ -520,8 +524,8 @@ helper.o: helper.F90 balance.o boundary.o deltaf_loader.o partlist.o simple_io.o
 ic_module.o: ic_module.f90 helper.o shared_data.o
 injectors.o: injectors.F90 evaluate.o file_injectors.o particle_temperature.o \
 	partlist.o random_generator.o utilities.o
-ionise.o: ionise.F90 boundary.o numerics.o partlist.o random_generator.o \
-  utilities.o
+ionise.o: ionise.F90 boundary.o calc_df.o numerics.o partlist.o \
+  random_generator.o utilities.o
 iterators.o: iterators.F90 particle_id_hash.o particle_pointer_advance.o \
   partlist.o
 laser.o: laser.f90 custom_laser.o evaluate.o
@@ -540,6 +544,7 @@ photons.o: photons.F90 partlist.o
 prefetch.o: prefetch.F90 shared_data.o
 probes.o: probes.F90 partlist.o $(SDFMOD)
 random_generator.o: random_generator.f90
+recombination.o: recombination.F90 calc_df.o collisions.o collision_ionise.o
 redblack_module.o: redblack_module.f90 partlist.o
 setup.o: setup.F90 balance.o boundary.o constants.o fields.o helper.o \
   injectors.o laser.o mpi_routines.o mpi_subtype_control.o particle_id_hash.o \

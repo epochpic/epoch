@@ -38,9 +38,10 @@ MODULE deck_species_block
   INTEGER :: check_block = c_err_none
   LOGICAL, DIMENSION(:), POINTER :: species_charge_set
   INTEGER, DIMENSION(:), POINTER :: species_ionise_limit 
-  LOGICAL, DIMENSION(:), POINTER :: species_can_ionise 
+  LOGICAL, DIMENSION(:), POINTER :: species_can_ionise
+  LOGICAL, DIMENSION(:), POINTER :: species_can_recombine 
   INTEGER :: n_secondary_species_in_block, n_secondary_limit
-  LOGICAL :: unique_electrons, use_ionise
+  LOGICAL :: unique_electrons, use_ionise, use_recombine
   CHARACTER(LEN=string_length) :: release_species_list
   CHARACTER(LEN=string_length), DIMENSION(:), POINTER :: release_species
   REAL(num), DIMENSION(:), POINTER :: ionisation_energies
@@ -49,6 +50,7 @@ MODULE deck_species_block
   INTEGER, DIMENSION(:), POINTER :: atomic_number
   INTEGER, DIMENSION(:), POINTER :: principle, angular, part_count
   INTEGER, DIMENSION(:), POINTER :: ionise_to_species, dumpmask_array
+  INTEGER, DIMENSION(:), POINTER :: recombine_to_species
   INTEGER, DIMENSION(:,:), POINTER :: bc_particle_array
   REAL(num) :: species_mass, species_charge
   INTEGER :: species_dumpmask
@@ -68,6 +70,7 @@ CONTAINS
       ! All the following information is required during c_ds_first so that the
       ! derived ionisation species can be correctly set up
       ALLOCATE(ionise_to_species(4))
+      ALLOCATE(recombine_to_species(4))
       ALLOCATE(release_species(4))
       ALLOCATE(ionisation_energies(4))
       ALLOCATE(mass(4))
@@ -76,6 +79,7 @@ CONTAINS
       ALLOCATE(principle(4))
       ALLOCATE(angular(4))
       ALLOCATE(species_can_ionise(4))
+      ALLOCATE(species_can_recombine(4))
       ALLOCATE(species_ionise_limit(4))
       ALLOCATE(part_count(4))
       ALLOCATE(dumpmask_array(4))
@@ -116,6 +120,7 @@ CONTAINS
         species_list(i)%dumpmask = dumpmask_array(i)
         species_list(i)%bc_particle = bc_particle_array(:,i)
         species_list(i)%ionise = species_can_ionise(i)
+        species_list(i)%recombine = species_can_recombine(i)
       END DO
 
       CALL set_ionisation_species_properties
@@ -137,10 +142,12 @@ CONTAINS
       DEALLOCATE(mass)
       DEALLOCATE(atomic_number)
       DEALLOCATE(species_can_ionise, species_ionise_limit)
+      DEALLOCATE(species_can_recombine)
       DEALLOCATE(ionisation_energies)
       DEALLOCATE(auto_electrons)
       DEALLOCATE(release_species)
       DEALLOCATE(ionise_to_species)
+      DEALLOCATE(recombine_to_species)
       DEALLOCATE(species_names)
 
       ! Sanity check on periodic boundaries
@@ -242,6 +249,7 @@ CONTAINS
   SUBROUTINE species_block_start
 
     use_ionise = .FALSE.
+    use_recombine = .FALSE.
     unique_electrons = .FALSE.
     n_secondary_species_in_block = 0
     n_secondary_limit = 200  ! 200 allows all ionisations from any table element
@@ -286,7 +294,8 @@ CONTAINS
       charge(n_species) = species_charge
       mass(n_species) = species_mass
       atomic_number(n_species) = species_atomic_number
-      species_can_ionise(n_species) = use_ionise 
+      species_can_ionise(n_species) = use_ionise
+      species_can_recombine(n_species) = use_recombine
       species_ionise_limit(n_species) = n_secondary_limit
       auto_electrons(n_species) = unique_electrons
       bc_particle_array(:, n_species) = species_bc_particle
@@ -330,6 +339,11 @@ CONTAINS
     IF (str_cmp(element, 'ionise') &
         .OR. str_cmp(element, 'ionize')) THEN
       use_ionise = as_logical_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'recombine')) THEN
+      use_recombine = as_logical_print(value, element, errcode)
       RETURN
     END IF
 
@@ -1154,8 +1168,10 @@ CONTAINS
 
     CALL grow_array(species_names, n_species)
     CALL grow_array(species_can_ionise, n_species)
+    CALL grow_array(species_can_recombine, n_species)
     CALL grow_array(species_ionise_limit, n_species)
     CALL grow_array(ionise_to_species, n_species)
+    CALL grow_array(recombine_to_species, n_species)
     CALL grow_array(release_species, n_species)
     CALL grow_array(mass, n_species)
     CALL grow_array(charge, n_species)
@@ -1170,6 +1186,7 @@ CONTAINS
 
     species_names(n_species) = TRIM(name)
     ionise_to_species(n_species) = -1
+    recombine_to_species(n_species) = -1
     release_species(n_species) = ''
     mass(n_species) = -1.0_num
     charge(n_species) = 0.0_num
@@ -1182,6 +1199,7 @@ CONTAINS
     auto_electrons(n_species) = .FALSE.
     bc_particle_array(:,n_species) = species_bc_particle
     species_can_ionise(n_species) = .FALSE.
+    species_can_recombine(n_species) = .FALSE.
     species_ionise_limit(n_species) = 1000
 
     RETURN
@@ -1209,13 +1227,20 @@ CONTAINS
     ! ground-states - one removed and one changing orbitals. Here, we still use
     ! (n,l) of the vanishing electron. The format of "ion_l.table" and
     ! "ion_n.table" matches "ionisation_energies.table"
+    !
+    ! Sometimes, the user may provide their own occupancy numbers. If such a
+    ! file is found in the TABLES/occupancy_numbers directory, then the
+    ! vanishing electron (n,l) shell will be deduced as described above.
 
     INTEGER, INTENT(IN) :: atomic_no, ion_state, ionise_num
     REAL(num), INTENT(OUT) :: ionise_energy(:)
     INTEGER, INTENT(OUT) :: ion_l(:), ion_n(:)
     REAL(num), ALLOCATABLE :: full_line_energy(:)
+    INTEGER :: full_line_occ_no(1:30)
     INTEGER, ALLOCATABLE :: full_line_l(:), full_line_n(:)
-    INTEGER :: i_file, io, iu
+    INTEGER :: first_occ_no(1:29), next_occ_no(1:29)
+    CHARACTER(LEN=3) :: z_string
+    INTEGER :: i_file, io, iu, iq
     LOGICAL :: exists
 
     IF (atomic_no < 1 .OR. atomic_no > 100) THEN
@@ -1308,6 +1333,111 @@ CONTAINS
     ion_l = full_line_l(ion_state+1:ion_state+ionise_num)
     ion_n = full_line_n(ion_state+1:ion_state+ionise_num)
     DEALLOCATE(full_line_energy, full_line_l, full_line_n)
+
+    ! Open occupancy number file if one is present, as these will overwrite the
+    ! FLYCHK n and l values
+    IF (atomic_no < 10) THEN
+      WRITE(z_string, '(I1)') atomic_no
+    ELSE IF (atomic_no < 100) THEN
+      WRITE(z_string, '(I2)') atomic_no
+    ELSE IF (atomic_no == 100) THEN
+      WRITE(z_string, '(I3)') atomic_no
+    END IF
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/occupancy_numbers/occ_no_"&
+        // z_string, EXIST=exists)
+    IF (exists) THEN
+      OPEN(UNIT = lu+3, &
+          FILE = TRIM(physics_table_location)//'/occupancy_numbers/occ_no_'//&
+          z_string, STATUS = 'OLD')
+    ELSE
+      ! Exit if no occupancy number file is provided
+      RETURN
+    END IF
+
+    ! Skip the occupancy numbers for charge-states outside the ionisation chain
+    ! Note that ion_state = 0 corresponds to line 2
+    DO i_file = 1, ion_state+1
+      READ(lu+3,*)
+    END DO
+
+    ! Occupancy numbers of the base-state
+    READ(lu+3,*) full_line_occ_no(1:30)
+    first_occ_no = full_line_occ_no(2:30)
+
+    ! Loop over ionisation states, saving original and ionised configurations
+    ! Identify the first state which loses electrons, and save the (n,l) value
+    ! Repeat over as many ionisation states as the user has requested
+    DO iq = 1, ionise_num
+      IF (ion_state + iq < atomic_no) THEN
+        READ(lu+3,*) full_line_occ_no(1:30)
+        next_occ_no = full_line_occ_no(2:30)
+      ELSE
+        ! Final state is fully ionised, but isn't in the file
+        next_occ_no = 0.0_num
+      END IF
+
+      ! Columns are ordered: 1s,2s,2p,2p*,3s,3p,3p*,4s,3d,3d*,4p,4p*,5s,4d,4d*,
+      !                      5p,5p*,6s,4f,4f*,5d,5d*,6p,6p*,7s,5f,5f*,6d,6d*
+      IF (first_occ_no(1) > next_occ_no(1)) THEN
+        ion_n(iq) = 1
+        ion_l(iq) = 0
+      ELSE IF (first_occ_no(2) > next_occ_no(2)) THEN
+        ion_n(iq) = 2
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(3:4)) > SUM(next_occ_no(3:4))) THEN
+        ion_n(iq) = 2
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(5) > next_occ_no(5)) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(6:7)) > SUM(next_occ_no(6:7))) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(8) > next_occ_no(8)) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(9:10)) > SUM(next_occ_no(9:10))) THEN
+        ion_n(iq) = 3
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(11:12)) > SUM(next_occ_no(11:12))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(13) > next_occ_no(13)) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(14:15)) > SUM(next_occ_no(14:15))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(16:17)) > SUM(next_occ_no(16:17))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(18) > next_occ_no(18)) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(19:20)) > SUM(next_occ_no(19:20))) THEN
+        ion_n(iq) = 4
+        ion_l(iq) = 3
+      ELSE IF (SUM(first_occ_no(21:22)) > SUM(next_occ_no(21:22))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 2
+      ELSE IF (SUM(first_occ_no(23:24)) > SUM(next_occ_no(23:24))) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 1
+      ELSE IF (first_occ_no(25) > next_occ_no(25)) THEN
+        ion_n(iq) = 7
+        ion_l(iq) = 0
+      ELSE IF (SUM(first_occ_no(26:27)) > SUM(next_occ_no(26:27))) THEN
+        ion_n(iq) = 5
+        ion_l(iq) = 3
+      ELSE IF (SUM(first_occ_no(28:29)) > SUM(next_occ_no(28:29))) THEN
+        ion_n(iq) = 6
+        ion_l(iq) = 2
+      END IF
+
+      first_occ_no = next_occ_no
+    END DO
+
+    CLOSE(lu+3)
 
   END SUBROUTINE read_ionisation_data
 
@@ -1715,6 +1845,12 @@ CONTAINS
           ionise_species(prev_ion) = .TRUE.
           species_list(prev_ion)%ionise_to_species = new_ion
 
+          ! Set recombine_to_species parameter if appropriate
+          species_list(new_ion)%recombine = species_list(prev_ion)%recombine
+          IF (species_list(new_ion)%recombine) THEN
+            species_list(new_ion)%recombine_to_species = prev_ion
+          END IF
+
           ! Set electron release species for the prev_ion species
           IF (auto_electrons(i_spec)) THEN
 
@@ -1763,6 +1899,9 @@ CONTAINS
 
           prev_ion = new_ion
         END DO
+
+        ! Base species cannot recombine 
+        species_list(i_spec)%recombine = .FALSE. 
 
         DEALLOCATE(ionise_energy, ion_n, ion_l)
         IF (.NOT. auto_electrons(i_spec)) CALL deallocate_stack(stack)

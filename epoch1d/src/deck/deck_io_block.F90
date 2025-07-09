@@ -611,6 +611,23 @@ CONTAINS
       elementselected = c_dump_part_work_z_total
 #endif
 
+#ifdef TRANSITION_RATES
+    ELSE IF (str_cmp(element, 'rate_fi')) THEN
+      elementselected = c_dump_part_rate_fi
+
+    ELSE IF (str_cmp(element, 'rate_ci')) THEN
+      elementselected = c_dump_part_rate_ci
+
+    ELSE IF (str_cmp(element, 'rate_dr')) THEN
+      elementselected = c_dump_part_rate_dr
+
+    ELSE IF (str_cmp(element, 'rate_rr')) THEN
+      elementselected = c_dump_part_rate_rr
+
+    ELSE IF (str_cmp(element, 'rate_3br')) THEN
+      elementselected = c_dump_part_rate_3br
+#endif
+
     ELSE IF (str_cmp(element, 'ex')) THEN
       elementselected = c_dump_ex
 

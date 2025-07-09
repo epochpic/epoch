@@ -196,6 +196,10 @@ CONTAINS
     ! Cross sections corresponding to electron energies [m**2]
     ALLOCATE(species_list(ispecies)%coll_ion_cross_sec(sample_el_in))
 
+    IF (use_three_body_recombination) THEN 
+      ALLOCATE(species_list(ispecies)%ci_outer_cross_sec(sample_el_in))
+    END IF
+
     ! Calculate electron energy and cross section at each table sample point
     DO isamp = 1, sample_el_in
 
@@ -262,6 +266,14 @@ CONTAINS
         sig_add = f_ion * gryzinski * sig_beli
         sig_mbell = sig_mbell + sig_add
 
+        ! Track contributions for outermost-shell separately for three-body
+        ! recombination
+        IF (n_qm == species_list(ispecies)%n .AND. &
+            l_qm == species_list(ispecies)%l .AND. &
+            use_three_body_recombination) THEN 
+              species_list(ispecies)%ci_outer_cross_sec(isamp) = sig_add
+        END IF
+
         ! Save cross section contribution from this bound electron
         cross_sec_parts(isamp, i_el) = sig_add
       END DO
@@ -310,6 +322,10 @@ CONTAINS
 
     ! Cross sections corresponding to electron energies [m**2]
     ALLOCATE(species_list(ispecies)%coll_ion_cross_sec(sample_el_in))
+
+    IF (use_three_body_recombination) THEN 
+      ALLOCATE(species_list(ispecies)%ci_outer_cross_sec(sample_el_in))
+    END IF
 
     ! Calculate electron energy and cross section at each table sample point
     DO isamp = 1, sample_el_in
@@ -364,6 +380,14 @@ CONTAINS
         ! Combine to RBEB cross section
         sig_add = rbeb_pre * rbeb_fac * (rbeb_1 + rbeb_2 + rbeb_3)
         sig_rbeb = sig_rbeb + sig_add
+
+        ! Track contributions for outermost-shell separately for three-body
+        ! recombination
+        IF (el_n(i_el) == species_list(ispecies)%n .AND. &
+            el_l(i_el) == species_list(ispecies)%l .AND. &
+            use_three_body_recombination) THEN 
+              species_list(ispecies)%ci_outer_cross_sec(isamp) = sig_add
+        END IF
 
         ! Save cross section contribution from this bound electron
         cross_sec_parts(isamp, i_el) = sig_add
@@ -594,7 +618,8 @@ CONTAINS
     REAL(num), INTENT(OUT) :: binding_energy(:), bound_ke(:)
     INTEGER, INTENT(OUT) :: el_n(:), el_l(:)
     CHARACTER(LEN=3) :: z_string
-    LOGICAL :: exists
+    LOGICAL :: exists, occ_no_from_file
+    INTEGER :: occ_no(29)
     INTEGER :: i_file, io, iu, read_ion, i_shell, el_remain, i_el, el_no
     REAL(num), ALLOCATABLE :: be_all_shells(:), u_all_shells(:)
 
@@ -631,10 +656,25 @@ CONTAINS
         FILE = TRIM(physics_table_location)//'/bound_ke/u_'//z_string, &
         STATUS = 'OLD')
 
+    ! Check if a file is present for occupancy numbers
+    INQUIRE(FILE=TRIM(physics_table_location)  // "/occupancy_numbers/occ_no_"&
+        // z_string, EXIST=exists)
+
+    ! Open occupancy number file if one is present
+    IF (exists) THEN
+      occ_no_from_file = .TRUE.
+      OPEN(UNIT = lu+2, &
+          FILE = TRIM(physics_table_location)//'/occupancy_numbers/occ_no_'//&
+          z_string, STATUS = 'OLD')
+    ELSE
+      occ_no_from_file = .FALSE.
+    END IF
+
     ! Keep reading the file until the correct line is reached (ignore header)
     DO i_file = 1, ion_state+1
       READ(lu,*)
       READ(lu+1,*)
+      IF (occ_no_from_file) READ(lu+2,*)
     END DO
 
     ! Ignore the charge column and read the binding energies and mean oribtial
@@ -646,6 +686,12 @@ CONTAINS
     CLOSE(lu)
     CLOSE(lu+1)
 
+    ! If the occupancy number has been provided, read the file
+    IF (occ_no_from_file) THEN 
+      READ(lu+2,*) read_ion, occ_no(1:29)
+      CLOSE(lu+2)
+    END IF
+
     ! Convert energies to [J]
     be_all_shells = be_all_shells * q0
     u_all_shells = u_all_shells * q0
@@ -653,7 +699,11 @@ CONTAINS
     ! Loop over the electrons, deduce the shell and save the binding energy,
     ! bound KE, and quantum numbers
     i_shell = 1
-    el_remain = table_count(i_shell)
+    IF (occ_no_from_file) THEN
+      el_remain = occ_no(i_shell)
+    ELSE
+      el_remain = table_count(i_shell)
+    END IF
     el_no = atomic_no - ion_state
     DO i_el = 1, el_no
 
@@ -668,7 +718,11 @@ CONTAINS
         END DO
 
         ! Number of vacancies in the new shell
-        el_remain = table_count(i_shell)
+        IF (occ_no_from_file) THEN
+          el_remain = occ_no(i_shell)
+        ELSE
+          el_remain = table_count(i_shell)
+        END IF
       END IF
 
       ! Save shell properties to current electron
@@ -682,6 +736,7 @@ CONTAINS
     END DO
 
     DEALLOCATE(be_all_shells)
+    DEALLOCATE(u_all_shells)
 
   END SUBROUTINE get_electron_data_from_file
 
@@ -946,6 +1001,10 @@ CONTAINS
         ! Probability of ionisation from a real electron (not macro-electron)
         ionise_prob = 1.0_num - EXP(- n_i * eiics * el_v_i * dt_ci)
 
+#ifdef TRANSITION_RATES
+        ion%rate_ci = eiics * el_v_i
+#endif
+
         ! Expected number of secondary electrons created by this macro-electron
         sec_no = el_weight * unionised_frac * ionise_prob
 
@@ -1134,7 +1193,7 @@ CONTAINS
     gamma_i = SQRT(ion_p2 / (ion_mass * c)**2 + 1.0_num)
     beta_i = SQRT(1.0_num - 1.0_num / gamma_i**2)
 
-    ! Lorentz transform e- kinetic energy to ion rest frame
+    ! Electron energy in simulation frame
     el_p2 = el_px**2 + el_py**2 + el_pz**2
     el_e = SQRT(el_p2 + (m0*c)**2) * c
 

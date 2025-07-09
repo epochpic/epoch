@@ -680,6 +680,18 @@ CONTAINS
         CALL write_particle_variable(c_dump_part_work_z_total, code, &
             'Time_Integrated_Work_z', 'J', it_output_real)
 #endif
+#ifdef TRANSITION_RATES
+        CALL write_particle_variable(c_dump_part_rate_fi, code, &
+            'rate_field_ionisation', 'm^3/s', it_output_real)
+        CALL write_particle_variable(c_dump_part_rate_ci, code, &
+            'rate_collision_ionisation', 'm^3/s', it_output_real)
+        CALL write_particle_variable(c_dump_part_rate_dr, code, &
+            'rate_dielectronic_recombination', 'm^3/s', it_output_real)
+        CALL write_particle_variable(c_dump_part_rate_rr, code, &
+            'rate_radiative_recombination', 'm^3/s', it_output_real)
+        CALL write_particle_variable(c_dump_part_rate_3br, code, &
+            'rate_3_body_recombination', 'm^3/s', it_output_real)
+#endif
         CALL write_particle_grid(code)
 
         ! These are derived variables from the particles
