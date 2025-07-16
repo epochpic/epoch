@@ -530,6 +530,8 @@ MODULE constants
   INTEGER, PARAMETER :: c_func_drifty = 45
   INTEGER, PARAMETER :: c_func_driftz = 46
   INTEGER, PARAMETER :: c_func_arctan2 = 47
+  INTEGER, PARAMETER :: c_func_min = 48
+  INTEGER, PARAMETER :: c_func_max = 49
 
   INTEGER, PARAMETER :: c_func_custom_lowbound = 4096
 
