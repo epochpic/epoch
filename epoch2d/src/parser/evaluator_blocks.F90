@@ -1051,6 +1051,18 @@ CONTAINS
       RETURN
     END IF
 
+    IF (opcode == c_func_min) THEN
+      CALL get_values(2, values)
+      CALL push_on_eval(MIN(values(1), values(2)))
+      RETURN
+    END IF
+
+    IF (opcode == c_func_max) THEN
+      CALL get_values(2, values)
+      CALL push_on_eval(MAX(values(1), values(2)))
+      RETURN
+    END IF
+
     err = c_err_unknown_element
 
   END SUBROUTINE do_functions
