@@ -307,7 +307,7 @@ FC_INFO := $(shell ${FC} --version 2>/dev/null \
 
 
 SRCFILES = background_collisions.F90 balance.F90 bethe_heitler.F90 \
-  boundary.F90 bremsstrahlung.F90 calc_df.F90 collisions.F90 \
+	boundary.F90 bremsstrahlung.F90 calc_df.F90 collisions.F90 \
 	collision_ionise.F90 constants.F90 current_smooth.F90 custom_deck.f90 \
 	custom_laser.f90 custom_parser.f90 deck.F90 deck_boundaries_block.f90 \
 	deck_bremsstrahlung_block.F90 deck_collision_block.F90 \
@@ -323,10 +323,10 @@ SRCFILES = background_collisions.F90 balance.F90 bethe_heitler.F90 \
 	particle_migration.F90 particle_pointer_advance.f90 particle_temperature.F90 \
 	particles.F90 partlist.F90 photons.F90 prefetch.F90 probes.F90 \
 	random_generator.f90 recombination.F90 redblack_module.f90 setup.F90 \
-  shape_functions.F90 shared_data.F90 shunt.F90 simple_io.F90 \
-  split_particle.F90 stack.f90 strings.f90 strings_advanced.f90 \
-  terminal_controls.F90 timer.f90 tokenizer_blocks.f90 utilities.f90 \
-  version_data.F90 welcome.F90 window.F90
+	shape_functions.F90 shared_data.F90 shunt.F90 simple_io.F90 \
+	split_particle.F90 stack.f90 strings.f90 strings_advanced.f90 \
+	terminal_controls.F90 timer.f90 tokenizer_blocks.f90 utilities.f90 \
+	version_data.F90 welcome.F90 window.F90
 
 OBJFILES := $(SRCFILES:.f90=.o)
 OBJFILES := $(OBJFILES:.F90=.o)
@@ -507,7 +507,7 @@ epoch3d.o: epoch3d.F90 background_collisions.o balance.o bremsstrahlung.o \
 	calc_df.o collisions.o collision_ionise.o current_smooth.o deck.o \
 	diagnostics.o fields.o finish.o helper.o ic_module.o injectors.o ionise.o \
 	mpi_routines.o particle_migration.o particles.o photons.o recombination.o \
-  setup.o split_particle.o welcome.o window.o
+	setup.o split_particle.o welcome.o window.o
 	$(FC) -c $(FFLAGS) $(FLTCONS) -o $(OBJDIR)/$@ $(PREPROFLAGS) $<
 evaluate.o: evaluate.F90 shunt.o stack.o
 evaluator_blocks.o: evaluator_blocks.F90 custom_parser.o stack.o strings.o
