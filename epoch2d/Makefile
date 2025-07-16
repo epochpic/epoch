@@ -234,10 +234,6 @@ DEFINES := $(DEFINE)
 # Don't generate any output at all. Useful for benchmarking.
 #DEFINES += $(D)NO_IO
 
-# Bypass the main simulation and only perform collision tests.
-# This flag should only ever be used for testing purposes.
-#DEFINES += $(D)COLLISIONS_TEST
-
 # Specify charge and mass per particle rather than per species.
 # This is a legacy option which will be removed soon.
 #DEFINES += $(D)PER_PARTICLE_CHARGE_MASS

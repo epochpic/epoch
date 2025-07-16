@@ -216,6 +216,10 @@ CONTAINS
           IF (npart_frac < random()) CYCLE
         END IF
         CALL create_particle(current)
+#ifdef PER_PARTICLE_CHARGE_MASS
+        current%mass = species%mass
+        current%charge = species%charge
+#endif
         current%part_pos = x0 + random() * dx
 
         IF (species%ic_df_type == c_ic_df_thermal) THEN

@@ -278,6 +278,10 @@ CONTAINS
 
           DO ipart = 1, npart_per_cell + n_frac
             CALL create_particle(current)
+#ifdef PER_PARTICLE_CHARGE_MASS
+            current%mass = species%mass
+            current%charge = species%charge
+#endif
             cell_frac_y = 0.5_num - random()
             cell_frac_z = 0.5_num - random()
             current%part_pos(1) = x0 + random() * dx

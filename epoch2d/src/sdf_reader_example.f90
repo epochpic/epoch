@@ -271,7 +271,7 @@ CONTAINS
     ! Size per processor
     npart_proc_gen = npart / n_procs
 
-    IF (rank == n_procs) THEN
+    IF (rank == n_procs-1) THEN
       ! Last processor takes excess particles to make starts easier
       npart_proc = npart - MAX(npart_proc_gen * (n_procs - 1), 0_i8)
     ELSE

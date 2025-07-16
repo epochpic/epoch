@@ -113,9 +113,6 @@ MODULE shared_data
 #elif PARTICLE_ID
     INTEGER(i8) :: id
 #endif
-#ifdef COLLISIONS_TEST
-    INTEGER :: coll_count
-#endif
 #ifdef WORK_DONE_INTEGRATED
     REAL(num) :: work_x
     REAL(num) :: work_y
