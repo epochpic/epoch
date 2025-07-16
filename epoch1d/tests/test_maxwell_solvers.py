@@ -23,7 +23,7 @@ import platform
 import numpy as np
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import sdf
+import sdfr
 
 from . import SimTest
 
@@ -81,7 +81,7 @@ class test_maxwell_solvers(SimTest):
             l = dumps.setdefault(solver, [])
             for dump in [osp.join(solver, '{:04d}.sdf'.format(i))
                          for i in range(8)]:
-                l.append(sdf.read(dump, dict=True))
+                l.append(sdfr.read(dump, dict=True))
 
     def test_createplot(self):
         if platform.system() == 'Darwin':

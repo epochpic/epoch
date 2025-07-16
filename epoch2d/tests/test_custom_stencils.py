@@ -23,7 +23,7 @@ import platform
 import numpy as np
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import sdf
+import sdfr
 
 from . import SimTest
 
@@ -110,7 +110,7 @@ class test_custom_stencils(SimTest):
             l = dumps.setdefault(solver, [])
             for dump in [osp.join(solver, '{:04d}.sdf'.format(i))
                          for i in range(4)]:
-                l.append(sdf.read(dump, dict=True))
+                l.append(sdfr.read(dump, dict=True))
 
     def test_createplot(self):
         if platform.system() == 'Darwin':
@@ -130,8 +130,8 @@ class test_custom_stencils(SimTest):
                                                 min(yaxis), max(yaxis)])
                 im.set_clim([-1e11, 1e11])
                 t = dump['Header']['time']
-                dx = np.asscalar(dump[key].grid_mid.data[0][1]
-                                 - dump[key].grid_mid.data[0][0])
+                dx = (dump[key].grid_mid.data[0][1]
+                      - dump[key].grid_mid.data[0][0]).item()
 
                 vg_yee = c*np.cos(k_l*dx/2.0) \
                     / np.sqrt(1-(c*dt[solver]/dx*np.sin(k_l*dx/2.0))**2)

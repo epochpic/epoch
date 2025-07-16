@@ -45,14 +45,7 @@ cd ..
 PYTHONCMD=$(which python3)
 if [ "$PYTHONCMD"x = x ]; then
   PYTHONCMD=$(which python)
-  FLG=""
-else
-  FLG="-3"
 fi
-
-# Build SDF/C and install python sdf reader
-(cd SDF/C; make)
-SDF/utilities/build.sh $FLG
 
 # show system info
 scripts/system_info.sh

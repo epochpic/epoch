@@ -496,9 +496,9 @@ CONTAINS
     ! Perfectly conducting boundaries
     DO i = c_bd_x_min, c_bd_x_max, c_bd_x_max - c_bd_x_min
       IF (bc_field(i) == c_bc_conduct) THEN
-        CALL field_clamp_zero(ex, ng, c_stagger_ex, i)
-        CALL field_zero_gradient(ey, c_stagger_ey, i)
-        CALL field_zero_gradient(ez, c_stagger_ez, i)
+        CALL field_zero_gradient(ex, c_stagger_ex, i)
+        CALL field_clamp_zero(ey, ng, c_stagger_ey, i)
+        CALL field_clamp_zero(ez, ng, c_stagger_ez, i)
       END IF
     END DO
 
@@ -541,9 +541,9 @@ CONTAINS
     ! Perfectly conducting boundaries
     DO i = c_bd_x_min, c_bd_x_max, c_bd_x_max - c_bd_x_min
       IF (bc_field(i) == c_bc_conduct) THEN
-        CALL field_zero_gradient(bx, c_stagger_bx, i)
-        CALL field_clamp_zero(by, ng, c_stagger_by, i)
-        CALL field_clamp_zero(bz, ng, c_stagger_bz, i)
+        CALL field_clamp_zero(bx, ng, c_stagger_bx, i)
+        CALL field_zero_gradient(by, c_stagger_by, i)
+        CALL field_zero_gradient(bz, c_stagger_bz, i)
       END IF
     END DO
 

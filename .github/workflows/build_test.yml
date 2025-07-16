@@ -19,7 +19,7 @@ jobs:
     if: github.event_name != 'pull_request_review' ||
         contains(github.event.pull_request.labels.*.name, 'auto-pr')
     # The type of runner that the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -31,7 +31,7 @@ jobs:
           define: >-
             -DPER_SPECIES_WEIGHT -DZERO_CURRENT_PARTICLES -DNO_PARTICLE_PROBES
             -DPARTICLE_SHAPE_TOPHAT -DPARTICLE_ID -DPHOTONS -DTRIDENT_PHOTONS
-            -DBREMSSTRAHLUNG -DPARSER_DEBUG -DNO_IO -DCOLLISIONS_TEST
+            -DBREMSSTRAHLUNG -DPARSER_DEBUG -DNO_IO
             -DPER_PARTICLE_CHARGE_MASS -DPARSER_CHECKING -DNO_USE_ISATTY
             -DWORK_DONE_INTEGRATED -DHC_PUSH -DNO_MPI3 -DDECK_DEBUG
         - mode:
@@ -49,14 +49,10 @@ jobs:
 
     steps:
     - name: Install dependencies
-      run: sudo apt update &&
-           sudo apt install -y
-               python3-dev
-               python3-numpy
-               python3-nose
-               python3-matplotlib
-               libpython3-dev
-               mpich
+      run: |
+        sudo apt update &&
+        sudo apt install -y python3-dev python3-numpy python3-nose python3-matplotlib libpython3-dev openmpi-bin libopenmpi-dev
+        pip install sdfr
 
     - name: Checkout code
       uses: actions/checkout@v4

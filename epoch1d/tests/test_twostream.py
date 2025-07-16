@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
-import sdf
+import sdfr
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import unittest
@@ -25,20 +25,20 @@ from . import SimTest
 
 
 def showdatafields(sdffile):
-    data = sdf.read(sdffile, dict=True)
+    data = sdfr.read(sdffile, dict=True)
     print('Data fields present in "' + sdffile + '":')
     print(data.keys())
 
 
 def plotdump(sdffile, key, ax):
-    data = sdf.read(sdffile, dict=True)
+    data = sdfr.read(sdffile, dict=True)
     array = data[key].data
     ax.plot(array)
     ax.set_title(r'{:2.1f} ms'.format(data['Header']['time']*1e3))
 
 
 def plotdump2d(sdffile, key, ax):
-    data = sdf.read(sdffile, dict=True)
+    data = sdfr.read(sdffile, dict=True)
     if len(data[key].dims) == 3:
         array = data[key].data[:, :, 0]
     else:

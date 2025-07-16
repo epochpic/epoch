@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
-import sdf
+import sdfr
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import unittest
@@ -25,13 +25,13 @@ from . import SimTest
 
 
 def showdatafields(sdffile):
-    data = sdf.read(sdffile, dict=True)
+    data = sdfr.read(sdffile, dict=True)
     print('Data fields present in "' + sdffile + '":')
     print(data.keys())
 
 
 def plotdump(sdffile, key, ax):
-    data = sdf.read(sdffile, dict=True)
+    data = sdfr.read(sdffile, dict=True)
     array = data[key].data
     ax.imshow(array.T, origin='lower')
     ax.set_title('{:2.1f} fs'.format(data['Header']['time']*1e15))
@@ -57,7 +57,7 @@ def createplots():
 class test_laser(SimTest):
 
     def totaleyassert(self, dump, val):
-        data = sdf.read(dump, dict=True)
+        data = sdfr.read(dump, dict=True)
         ey = data['Electric Field/Ey'].data**2
         eysum = np.sum(ey)
         test = np.isclose(eysum, val)

@@ -58,9 +58,6 @@ CONTAINS
 #if defined(PARTICLE_ID) || defined(PARTICLE_ID4)
     nvar = nvar+1
 #endif
-#ifdef COLLISIONS_TEST
-    nvar = nvar+1
-#endif
 #ifdef PHOTONS
     nvar = nvar+1
 #endif
@@ -448,10 +445,6 @@ CONTAINS
     array(cpos) = TRANSFER(a_particle%id, 1.0_num)
     cpos = cpos+1
 #endif
-#ifdef COLLISIONS_TEST
-    array(cpos) = REAL(a_particle%coll_count, num)
-    cpos = cpos+1
-#endif
 #ifdef PHOTONS
     array(cpos) = a_particle%optical_depth
     cpos = cpos+1
@@ -528,10 +521,6 @@ CONTAINS
     a_particle%id = TRANSFER(array(cpos), a_particle%id)
     cpos = cpos+1
 #endif
-#ifdef COLLISIONS_TEST
-    a_particle%coll_count = NINT(array(cpos))
-    cpos = cpos+1
-#endif
 #ifdef PHOTONS
     a_particle%optical_depth = array(cpos)
     cpos = cpos+1
@@ -602,9 +591,6 @@ CONTAINS
 #endif
 #if defined(PARTICLE_ID) || defined(PARTICLE_ID4)
     new_particle%id = generate_id()
-#endif
-#ifdef COLLISIONS_TEST
-    new_particle%coll_count = 0
 #endif
 #if defined(PHOTONS) || defined(BREMSSTRAHLUNG)
     ! This assigns an optical depth to newly created particle

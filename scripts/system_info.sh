@@ -40,6 +40,6 @@ echo -n 'numpy version: '
 $PYTHONCMD -c 'import numpy; print(numpy.__version__)'
 echo -n 'matplotlib version: '
 $PYTHONCMD -c 'import matplotlib; print(matplotlib.__version__)'
-echo -n 'sdf version: '
-$PYTHONCMD -c 'import sdf; print(sdf.__version__)'
+echo -n 'sdfr version: '
+$PYTHONCMD -c 'import sdfr; print(sdfr.__version__)'
 

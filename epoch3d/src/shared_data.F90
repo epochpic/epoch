@@ -111,9 +111,6 @@ MODULE shared_data
 #if defined(PARTICLE_ID4) || defined(PARTICLE_ID)
     INTEGER(idkind) :: id
 #endif
-#ifdef COLLISIONS_TEST
-    INTEGER :: coll_count
-#endif
 #ifdef WORK_DONE_INTEGRATED
     REAL(num) :: work_x
     REAL(num) :: work_y
