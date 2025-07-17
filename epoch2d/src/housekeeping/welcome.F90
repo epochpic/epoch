@@ -141,6 +141,9 @@ CONTAINS
 #ifdef NO_IO
     found = .TRUE.
 #endif
+#ifdef TRANSITION_RATES
+    found = .TRUE.
+#endif
 #ifdef DELTAF_METHOD
     found = .TRUE.
 #endif
@@ -248,6 +251,10 @@ CONTAINS
 #ifdef NO_IO
     ! There is no need to add a c_def for this since no I/O occurs.
     WRITE(*,*) 'Perform no I/O -DNO_IO'
+#endif
+#ifdef TRANSITION_RATES
+    defines = IOR(defines, c_def_transition_rates)
+    WRITE(*,*) 'Save particle ionisation/recombination rates -DTRANSITION_RATES'
 #endif
 #ifdef DELTAF_METHOD
     defines = IOR(defines, c_def_deltaf_method)

@@ -21,6 +21,7 @@ MODULE ionise
   USE mpi
   USE utilities
   USE boundary
+  USE calc_df
 
   IMPLICIT NONE
 
@@ -366,6 +367,11 @@ CONTAINS
     REAL(num), PARAMETER :: fac = (0.5_num)**c_ndims
 #endif
 
+#ifdef TRANSITION_RATES
+    REAL(num) :: ni_at_ion
+    REAL(num), ALLOCATABLE :: ion_density(:,:,:)
+#endif
+
     idx = 1.0_num / dx
     idy = 1.0_num / dy
     idz = 1.0_num / dz
@@ -380,6 +386,10 @@ CONTAINS
       CALL create_empty_partlist(ionised_list(i))
     END DO
 
+#ifdef TRANSITION_RATES
+    ALLOCATE(ion_density(1-ng:nx+ng, 1-ng:ny+ng, 1-ng:nz+ng))
+#endif
+
     ! Ionise a species at a time
     DO i = 1, n_species
       ! Skip particle if it cannot be ionised
@@ -388,6 +398,9 @@ CONTAINS
       current => species_list(i)%attached_list%head
 #ifdef PER_SPECIES_WEIGHT
       weight = species_list(i)%weight
+#endif
+#ifdef TRANSITION_RATES
+    CALL calc_number_density(ion_density, i)  
 #endif
 
       ! Try to ionise every particle of the species
@@ -473,6 +486,10 @@ CONTAINS
 #include "tophat/e_part.inc"
 #else
 #include "triangle/e_part.inc"
+#endif
+
+#ifdef TRANSITION_RATES
+        ni_at_ion = ion_density(cell_x1, cell_y1, cell_z1)
 #endif
 
         ! Electric field strength in atomic units
@@ -530,6 +547,12 @@ CONTAINS
             EXIT
           END IF
 
+#ifdef TRANSITION_RATES
+          ! For consistency with collisional ionisation, quote rate per unit ion
+          ! number density, [m³/s]
+          current%rate_fi = rate / ni_at_ion
+#endif
+
           sample = random()
           ! Calculate probability of ionisation using a cumulative distribution
           ! function modelling ionisation in a field as an exponential decay
@@ -635,6 +658,10 @@ CONTAINS
     END DO
     ! Put ionised particles back into partlists
 
+#ifdef TRANSITION_RATES
+    DEALLOCATE(ion_density)
+#endif
+
   END SUBROUTINE multiphoton_tunnelling_bsi
 
 
@@ -669,6 +696,11 @@ CONTAINS
     REAL(num), PARAMETER :: fac = (0.5_num)**c_ndims
 #endif
 
+#ifdef TRANSITION_RATES
+    REAL(num) :: ni_at_ion
+    REAL(num), ALLOCATABLE :: ion_density(:,:,:)
+#endif
+
     idx = 1.0_num / dx
     idy = 1.0_num / dy
     idz = 1.0_num / dz
@@ -691,6 +723,9 @@ CONTAINS
       current => species_list(i)%attached_list%head
 #ifdef PER_SPECIES_WEIGHT
       weight = species_list(i)%weight
+#endif
+#ifdef TRANSITION_RATES
+    CALL calc_number_density(ion_density, i)  
 #endif
 
       ! Try to ionise every particle of the species
@@ -776,6 +811,10 @@ CONTAINS
 #include "tophat/e_part.inc"
 #else
 #include "triangle/e_part.inc"
+#endif
+
+#ifdef TRANSITION_RATES
+        ni_at_ion = ion_density(cell_x1, cell_y1, cell_z1)
 #endif
 
         ! Electric field strength in atomic units
@@ -820,6 +859,12 @@ CONTAINS
             EXIT
           END IF
 
+#ifdef TRANSITION_RATES
+          ! For consistency with collisional ionisation, quote rate per unit ion
+          ! number density, [m³/s]
+          current%rate_fi = rate / ni_at_ion
+#endif
+
           sample = random()
           ! Calculate probability of ionisation using a cumulative distribution
           ! function modelling ionisation in a field as an exponential decay
@@ -925,6 +970,10 @@ CONTAINS
     END DO
     ! Put ionised particles back into partlists
 
+#ifdef TRANSITION_RATES
+    DEALLOCATE(ion_density)
+#endif
+
   END SUBROUTINE multiphoton_tunnelling
 
 
@@ -958,6 +1007,11 @@ CONTAINS
     REAL(num), PARAMETER :: fac = (0.5_num)**c_ndims
 #endif
 
+#ifdef TRANSITION_RATES
+    REAL(num) :: ni_at_ion
+    REAL(num), ALLOCATABLE :: ion_density(:,:,:)
+#endif
+
     idx = 1.0_num / dx
     idy = 1.0_num / dy
     idz = 1.0_num / dz
@@ -980,6 +1034,9 @@ CONTAINS
       current => species_list(i)%attached_list%head
 #ifdef PER_SPECIES_WEIGHT
       weight = species_list(i)%weight
+#endif
+#ifdef TRANSITION_RATES
+    CALL calc_number_density(ion_density, i)  
 #endif
 
       ! Try to ionise every particle of the species
@@ -1065,6 +1122,10 @@ CONTAINS
 #include "tophat/e_part.inc"
 #else
 #include "triangle/e_part.inc"
+#endif
+
+#ifdef TRANSITION_RATES
+        ni_at_ion = ion_density(cell_x1, cell_y1, cell_z1)
 #endif
 
         ! Electric field strength in atomic units
@@ -1113,6 +1174,12 @@ CONTAINS
             EXIT
           END IF
 
+#ifdef TRANSITION_RATES
+          ! For consistency with collisional ionisation, quote rate per unit ion
+          ! number density, [m³/s]
+          current%rate_fi = rate / ni_at_ion
+#endif
+
           sample = random()
           ! Calculate probability of ionisation using a cumulative distribution
           ! function modelling ionisation in a field as an exponential decay
@@ -1204,6 +1271,10 @@ CONTAINS
     END DO
     ! Put ionised particles back into partlists
 
+#ifdef TRANSITION_RATES
+    DEALLOCATE(ion_density)
+#endif
+
   END SUBROUTINE tunnelling_bsi
 
 
@@ -1237,6 +1308,11 @@ CONTAINS
     REAL(num), PARAMETER :: fac = (0.5_num)**c_ndims
 #endif
 
+#ifdef TRANSITION_RATES
+    REAL(num) :: ni_at_ion
+    REAL(num), ALLOCATABLE :: ion_density(:,:,:)
+#endif
+
     idx = 1.0_num / dx
     idy = 1.0_num / dy
     idz = 1.0_num / dz
@@ -1259,6 +1335,9 @@ CONTAINS
       current => species_list(i)%attached_list%head
 #ifdef PER_SPECIES_WEIGHT
       weight = species_list(i)%weight
+#endif
+#ifdef TRANSITION_RATES
+    CALL calc_number_density(ion_density, i)  
 #endif
 
       ! Try to ionise every particle of the species
@@ -1346,6 +1425,10 @@ CONTAINS
 #include "triangle/e_part.inc"
 #endif
 
+#ifdef TRANSITION_RATES
+        ni_at_ion = ion_density(cell_x1, cell_y1, cell_z1)
+#endif
+
         ! Electric field strength in atomic units
         e_part_mag = fac * SQRT(ex_part**2 + ey_part**2 + ez_part**2) &
             / atomic_electric_field
@@ -1377,6 +1460,12 @@ CONTAINS
             ! any ionisation
             EXIT
           END IF
+
+#ifdef TRANSITION_RATES
+          ! For consistency with collisional ionisation, quote rate per unit ion
+          ! number density, [m³/s]
+          current%rate_fi = rate / ni_at_ion
+#endif
 
           sample = random()
           ! Calculate probability of ionisation using a cumulative distribution
@@ -1468,6 +1557,10 @@ CONTAINS
       CALL append_partlist(species_list(i)%attached_list, ionised_list(i))
     END DO
     ! Put ionised particles back into partlists
+
+#ifdef TRANSITION_RATES
+    DEALLOCATE(ion_density)
+#endif
 
   END SUBROUTINE tunnelling
 

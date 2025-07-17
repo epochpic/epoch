@@ -136,6 +136,13 @@ MODULE shared_data
 #if defined(PROBE_TIME)
     REAL(num) :: probe_time
 #endif
+#ifdef TRANSITION_RATES
+    REAL(num) :: rate_fi
+    REAL(num) :: rate_ci
+    REAL(num) :: rate_dr
+    REAL(num) :: rate_rr
+    REAL(num) :: rate_3br
+#endif
   END TYPE particle
 
   ! Data for migration between species
@@ -266,6 +273,14 @@ MODULE shared_data
     REAL(num), ALLOCATABLE :: coll_ion_mean_bind(:,:)
     REAL(num), ALLOCATABLE :: coll_ion_secondary_ke(:,:)
     REAL(num), ALLOCATABLE :: coll_ion_secondary_cdf(:,:)
+        
+    ! Species recombination
+    LOGICAL :: recombine
+    INTEGER :: recombine_to_species
+    INTEGER :: recombine_array_size_dr, recombine_array_size_rr
+    REAL(num), ALLOCATABLE :: recombine_temp_dr(:), recombine_rate_dr(:)
+    REAL(num), ALLOCATABLE :: recombine_temp_rr(:), recombine_rate_rr(:)
+    REAL(num), ALLOCATABLE :: ci_outer_cross_sec(:)
 
     ! Attached probes for this species
 #ifndef NO_PARTICLE_PROBES
@@ -586,6 +601,7 @@ MODULE shared_data
   INTEGER :: coll_n_step = 1
   INTEGER :: back_n_step = 1
   INTEGER :: ci_n_step = 1
+  INTEGER :: recombine_n_step = 1
   REAL(num) :: coulomb_log, rel_cutoff, back_update_dt
   LOGICAL :: coulomb_log_auto, use_collisions
   LOGICAL :: use_background_collisions
@@ -595,7 +611,10 @@ MODULE shared_data
   LOGICAL :: coll_subcycle_back = .FALSE.
   LOGICAL :: coll_back_recalc
 
-  LOGICAL :: use_field_ionisation, use_collisional_ionisation
+  LOGICAL :: use_field_ionisation, use_collisional_ionisation, use_recombination
+  LOGICAL :: use_dielectronic_recombination = .TRUE.
+  LOGICAL :: use_radiative_recombination = .TRUE.
+  LOGICAL :: use_three_body_recombination = .TRUE.
   LOGICAL :: use_multiphoton, use_bsi
   CHARACTER(LEN=string_length) :: physics_table_location
 

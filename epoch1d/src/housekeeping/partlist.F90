@@ -76,6 +76,9 @@ CONTAINS
 #ifdef WORK_DONE_INTEGRATED
     nvar = nvar+6
 #endif
+#ifdef TRANSITION_RATES
+    nvar = nvar+5
+#endif
     ! Persistent IDs
     IF (any_persistent_subset) nvar = nvar+1
 
@@ -470,6 +473,14 @@ CONTAINS
     array(cpos+5) = a_particle%work_z_total
     cpos = cpos+6
 #endif
+#ifdef TRANSITION_RATES
+    array(cpos) = a_particle%rate_fi
+    array(cpos+1) = a_particle%rate_ci
+    array(cpos+2) = a_particle%rate_dr
+    array(cpos+3) = a_particle%rate_rr
+    array(cpos+4) = a_particle%rate_3br
+    cpos = cpos+5
+#endif
     IF (any_persistent_subset) THEN
       temp_i8 = id_registry%map(a_particle)
       array(cpos) = TRANSFER(temp_i8, 1.0_num)
@@ -545,6 +556,14 @@ CONTAINS
     a_particle%work_z_total = array(cpos+5)
     cpos = cpos+6
 #endif
+#ifdef TRANSITION_RATES
+    a_particle%rate_fi = array(cpos)
+    a_particle%rate_ci = array(cpos+1)
+    a_particle%rate_dr = array(cpos+2)
+    a_particle%rate_rr = array(cpos+3)
+    a_particle%rate_3br = array(cpos+4)
+    cpos = cpos+5
+#endif
     IF (any_persistent_subset) THEN
       CALL id_registry%add_with_map(a_particle, TRANSFER(array(cpos), temp_i8))
       cpos = cpos+1
@@ -598,7 +617,14 @@ CONTAINS
     new_particle%work_x_total = 0_num
     new_particle%work_y_total = 0_num
     new_particle%work_z_total = 0_num
-#endif 
+#endif
+#ifdef TRANSITION_RATES
+    new_particle%rate_fi = 0.0_num
+    new_particle%rate_ci = 0.0_num
+    new_particle%rate_dr = 0.0_num
+    new_particle%rate_rr = 0.0_num
+    new_particle%rate_3br = 0.0_num
+#endif
 
   END SUBROUTINE init_particle
 
