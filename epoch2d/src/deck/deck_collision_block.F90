@@ -139,7 +139,7 @@ CONTAINS
 
     END IF
 
-    IF (use_collisional_ionisation) use_particle_lists = .TRUE.
+    use_particle_lists = use_particle_lists .OR. use_collisional_ionisation
 
   END SUBROUTINE collision_deck_finalise
 
