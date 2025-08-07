@@ -75,8 +75,8 @@ CONTAINS
     END IF
 
     sig2cdt_dV_lbw = 2.0_num * sigma_lBW_max * c * dt / dx * LBW_amp_factor
-    sig2cdt_dV_lcs = 2.0_num * sigma_thomson * cdt_dV
     cdt_dV = c * dt / dx
+    sig2cdt_dV_lcs = 2.0_num * sigma_thomson * cdt_dV
     i_LBW_amp_factor = 1.0_num / LBW_amp_factor
 
   END SUBROUTINE setup_qed_module

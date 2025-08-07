@@ -248,7 +248,6 @@ MODULE constants
   REAL(num), PARAMETER :: quarter_pire2 = 0.25_num * pi * classical_re**2
 #endif
 
-
   ! Constants used for bremsstrahlung with plasma screening
 #ifdef BREMSSTRAHLUNG
   REAL(num), PARAMETER :: e_radius = 0.25_num / pi / epsilon0 / m0 * (q0 / c)**2
