@@ -20,11 +20,13 @@ MODULE photons
   USE partlist
   USE utilities
 
+
   IMPLICIT NONE
 
   REAL(num), PRIVATE :: sig2cdt_dV_lbw
   REAL(num), PRIVATE :: cdt_dV
   REAL(num), PRIVATE :: i_LBW_amp_factor
+  REAL(num) :: sig2cdt_dV_lcs
   SAVE
   REAL(num) :: part_pos_global, gamma_global, eta_global
 
@@ -73,7 +75,8 @@ CONTAINS
     END IF
 
     sig2cdt_dV_lbw = 2.0_num * sigma_lBW_max * c * dt / dx * LBW_amp_factor
-    cdt_dV = c * dt / dx * LBW_amp_factor
+    sig2cdt_dV_lcs = 2.0_num * sigma_thomson * cdt_dV
+    cdt_dV = c * dt / dx
     i_LBW_amp_factor = 1.0_num / LBW_amp_factor
 
   END SUBROUTINE setup_qed_module
@@ -1419,10 +1422,12 @@ CONTAINS
 
   SUBROUTINE do_binary_collisions
 
+    
     INTEGER :: ispecies, jspecies
     INTEGER(i8) :: ix
     TYPE(particle_list), POINTER :: p_list1, p_list2
     TYPE(particle_list) :: new_lbw_electrons, new_lbw_positrons
+    TYPE(particle_list) :: splitted_lcs_photons, splitted_lcs_leptons
 
     IF (use_LBW) THEN
       DO ispecies = 1, n_species
@@ -1457,6 +1462,44 @@ CONTAINS
         END DO ! jspecies
       END DO ! ispecies
     END IF ! if use_LBW
+
+    IF (use_LCS) THEN
+      DO ispecies = 1, n_species
+        IF (species_list(ispecies)%species_type == c_species_id_photon) THEN
+
+          DO jspecies = 1, n_species
+            IF (species_list(jspecies)%species_type == c_species_id_electron &
+              .OR. species_list(jspecies)%species_type == c_species_id_positron) THEN
+
+              DO ix = 1, nx
+
+                CALL create_empty_partlist(splitted_lcs_photons)
+                CALL create_empty_partlist(splitted_lcs_leptons)
+
+                p_list1 => species_list(ispecies)%secondary_list(ix)
+                p_list2 => species_list(jspecies)%secondary_list(ix)
+
+                CALL linear_Compton_scattering( &
+                      p_list1, p_list2, ispecies, jspecies, ix, &
+                      splitted_lcs_photons, splitted_lcs_leptons)
+
+
+                IF (splitted_lcs_photons%count > 0) THEN
+                  CALL append_partlist(species_list(ispecies &
+                      )%secondary_list(ix), splitted_lcs_photons)
+                END IF
+
+                IF (splitted_lcs_leptons%count > 0) THEN
+                  CALL append_partlist(species_list(jspecies &
+                    )%secondary_list(ix), splitted_lcs_leptons)
+                END IF
+
+              END DO ! do ix = 1, nx
+            END IF ! jspecies being lepton
+          END DO ! jspecies
+        END IF ! ispecies being photon
+      END DO ! ispecies
+    END IF ! if use_LCS
 
   END SUBROUTINE do_binary_collisions
 
@@ -1569,7 +1612,8 @@ CONTAINS
       sigma_lbw = lbw_cross_sec(com_beta)
 
       ! collisional probability after modification by P_max
-      P_coll = sigma_lbw * cdt_dV * MAX(weight_i, weight_j) * kappa * i_Pmax
+      P_coll = sigma_lbw * cdt_dV  * LBW_amp_factor &
+          * MAX(weight_i, weight_j) * kappa * i_Pmax
 
       IF (random() > P_coll) THEN
         ! These two macro-photons do not collide (due to collisional probability)
@@ -1705,7 +1749,7 @@ CONTAINS
 
 
   SUBROUTINE linear_Breit_Wheeler_inter(p_list_i, p_list_j, ispe, jspe, &
-    ixx, lbw_elec_list, lbw_posi_list)
+      ixx, lbw_elec_list, lbw_posi_list)
 
     TYPE(particle_list), INTENT(INOUT) :: p_list_i, p_list_j
     INTEGER, INTENT(IN) :: ispe, jspe
@@ -1741,6 +1785,7 @@ CONTAINS
     ! maximal possible collisional probability P_max
     q_i   = max_weight(p_list_i)
     q_j   = max_weight(p_list_j)
+
     P_max = sig2cdt_dV_lbw * MAX(q_i, q_j)
 
     ! determine how many macro-particle pairs are up to collide (N_coll)
@@ -1752,7 +1797,7 @@ CONTAINS
       N_coll = FLOOR(N_max)
     END IF
 
-    !!! Check the collision of these N_coll pairings of macro-photon
+        !!! Check the collision of these N_coll pairings of macro-photon
     IF (N_coll <= 0) RETURN
 
     IF (N_coll > MIN(icount, jcount)) THEN
@@ -1816,7 +1861,8 @@ CONTAINS
       sigma_lbw = lbw_cross_sec(com_beta)
 
       ! collisional probability after modification by P_max
-      P_coll = sigma_lbw * cdt_dV * MAX(weight_i, weight_j) * kappa * i_Pmax
+      P_coll = sigma_lbw * cdt_dV  * LBW_amp_factor &
+           * MAX(weight_i, weight_j) * kappa * i_Pmax
 
       IF (random() > P_coll) THEN
         ! These two macro-photons do not collide (due to collisional probability)
@@ -1952,6 +1998,234 @@ CONTAINS
 
 
 
+  SUBROUTINE linear_Compton_scattering(p_list_i, p_list_j, &
+      ispe, jspe, ixx, splitted_phot_list, splitted_lept_list)
+
+    !!! i is always photon, j is always lepton
+    TYPE(particle_list), INTENT(INOUT) :: p_list_i, p_list_j
+    INTEGER, INTENT(IN) :: ispe, jspe
+    INTEGER(i8), INTENT(IN) :: ixx
+    TYPE(particle_list), INTENT(INOUT) :: splitted_phot_list
+    TYPE(particle_list), INTENT(INOUT) :: splitted_lept_list
+    INTEGER :: icount, jcount
+    REAL(num) :: q_i, q_j, P_max, N_max
+    INTEGER :: N_coll
+    TYPE(particle), POINTER :: current_i, current_j
+    REAL(num) :: i_Pmax
+    INTEGER :: N_scattered
+    REAL(num) :: weight_i, weight_j
+    REAL(num), DIMENSION(3) :: p_phot_lab_si, p_lept_lab_si
+    REAL(num), DIMENSION(3) :: p_phot_lab   , p_lept_lab
+    REAL(num) :: gamma_lept_lab, energy_phot_lab, energy_phot_0
+    REAL(num) :: sigma_rest, sigma_lab
+    REAL(num) :: P_coll
+    REAL(num), DIMENSION(3) :: n_v, p_phot_0_si
+    REAL(num) :: rand_phi, rand_mu
+    REAL(num) :: energy_phot_0_sca
+    REAL(num), DIMENSION(3) :: e1, e2, e3
+    REAL(num), DIMENSION(3) :: p_phot_0_sca
+    REAL(num), DIMENSION(3) :: p_phot_lab_sca, p_phot_lab_sca_si
+    REAL(num) :: energy_phot_lab_sca, energy_phot_lab_sca_si
+    REAL(num), DIMENSION(3) :: p_lept_lab_sca_si
+    TYPE(particle), POINTER :: splitted_particle
+    
+    ! If there aren't enough particles to collide, then don't bother
+    icount = p_list_i%count
+    jcount = p_list_j%count
+    IF (icount < 1 .OR. jcount < 1) RETURN
+
+    !!! Determine how many macro-macro pairings are up to be checked
+
+    ! maximal possible collisional probability P_max
+    q_i   = max_weight(p_list_i)
+    q_j   = max_weight(p_list_j)
+
+    P_max = sig2cdt_dV_lcs * MAX(q_i, q_j)
+
+    ! determine how many macro-particle pairs are up to collide (N_coll)
+    N_max = P_max * icount * jcount
+
+    If (random()< (N_max-FLOOR(N_max))) THEN
+      N_coll = CEILING(N_max)
+    ELSE
+      N_coll = FLOOR(N_max)
+    END IF
+
+    IF (N_coll > MIN(icount, jcount)) THEN
+      PRINT*, "Too many LCS collisions."
+      STOP
+    END IF
+
+    !!! Check the collision of these N_coll pairings of macro-photon
+
+    IF (N_coll > 0) THEN
+      ! shuffle particle list only if there are pairs to check
+      CALL shuffle_particle_list_random(p_list_i)
+      CALL shuffle_particle_list_random(p_list_j)
+
+      current_i => p_list_i%head
+      current_j => p_list_j%head
+
+      i_Pmax = 1.0_num/P_max
+      N_scattered = 0
+
+    ELSE
+      RETURN ! N_coll = 0, no pair to check
+
+    END IF
+
+    DO WHILE (N_scattered < N_coll)
+
+      !!! calculate joint collisional probability P_coll
+
+      weight_i = current_i%weight
+      weight_j = current_j%weight
+
+      ! particle momentum in lab frame in S.I.
+      p_phot_lab_si = current_i%part_p
+      p_lept_lab_si = current_j%part_p
+        ! (notice in this case, next_i and next_j are not defined)
+
+
+      ! particle momentum in lab frame norm. by mc
+      p_phot_lab = p_phot_lab_si * inv_mc0
+      p_lept_lab = p_lept_lab_si * inv_mc0
+
+      ! lorentz factor of lepton
+      gamma_lept_lab = SQRT(1.0_num + DOT_PRODUCT(p_lept_lab, p_lept_lab))
+
+      ! photon energy in lab frame norm. by mc2
+      energy_phot_lab = current_i%particle_energy * inv_m0c2
+
+      ! photon energy in lepton rest frame norm. by mc2
+      energy_phot_0 = gamma_lept_lab * energy_phot_lab &
+          - DOT_PRODUCT(p_phot_lab, p_lept_lab)
+
+      ! compton cross section in lepton rest frame
+      sigma_rest = lcs_cross_sec(energy_phot_0)
+
+      ! compton cross section in lab frame
+      sigma_lab = sigma_rest * energy_phot_0 &
+          / energy_phot_lab / gamma_lept_lab
+
+      ! collisional probability after modification by P_max
+      P_coll = sigma_lab * cdt_dV * MAX(weight_i, weight_j) * i_Pmax
+
+      If (random() < P_coll) THEN
+
+        !!! Now, scatter these two macro-particles.
+
+        ! unit vector of lepton velocity in lab frame
+        n_v = p_lept_lab / SQRT(DOT_PRODUCT(p_lept_lab, p_lept_lab))
+
+        ! photon momentum in rest frame in SI
+        p_phot_0_si = p_phot_lab_si + (gamma_lept_lab-1.0_num) * &
+            DOT_PRODUCT(p_phot_lab_si,n_v)*n_v &
+            - p_lept_lab_si*energy_phot_lab
+
+        IF (use_LCS_diff) THEN
+
+          ! random azimuthal angle in c.o.m.
+          rand_phi = 2.0_num * pi * random()
+
+          ! random polar angle in c.o.m. (cosine of this random angle)
+          rand_mu = random_polar_lcs(energy_phot_0, sigma_rest)
+
+        ELSE
+        ! uniform distribution on sphere surface
+          rand_phi = 2.0_num * pi * random()
+          rand_mu = 2.0_num * random() - 1.0_num
+
+          ! Notice unlike LBW and EPA, for LCS, there's one-to-one correspondance
+          ! between polar angle and scattered photon energy.
+          ! Therefore, the calculated scattered photon energy is only valid
+          ! for that particular polar angle w.r.t. collisional axis.
+          ! So, we still need to calculate the collisional axis (even though
+          ! the distribution is uniform). We cannot just assign a random
+          ! angle uniform in S^2, while using energy_phot_0_sca as its magnitude.
+
+        END IF
+
+        ! scattered photon energy in rest frame norm. by mc2
+        energy_phot_0_sca = energy_phot_0 &
+            / (1.0_num+energy_phot_0*(1.0_num-rand_mu))
+
+        ! orthonormal basis (e1, e2, e3) s.t. e1//photon momentum in rest frame
+        CALL get_orthonormal(p_phot_0_si, e1, e2, e3)
+
+        ! scattered photon momentum in rest frame norm. by mc
+        p_phot_0_sca = energy_phot_0_sca * &
+          ( e1*rand_mu &
+          + e2*SQRT(1.0_num-rand_mu**2)*COS(rand_phi) &
+          + e3*SQRT(1.0_num-rand_mu**2)*SIN(rand_phi))
+
+        !!! scattered photon momentum and energy in lab frame
+        ! Here the plus sign is not a typo: transform w.r.t. -n_v
+        p_phot_lab_sca = p_phot_0_sca + (gamma_lept_lab-1.0_num) &
+            * DOT_PRODUCT(p_phot_0_sca,n_v)*n_v &
+            + p_lept_lab*energy_phot_0_sca
+
+        energy_phot_lab_sca = SQRT(DOT_PRODUCT(p_phot_lab_sca, &
+            p_phot_lab_sca))
+
+        p_phot_lab_sca_si = p_phot_lab_sca * mc0
+        energy_phot_lab_sca_si = energy_phot_lab_sca * m0c2
+
+        ! scattered lepton momentum in lab frame
+
+        p_lept_lab_sca_si = p_lept_lab_si + p_phot_lab_si &
+            - p_phot_lab_sca_si
+
+
+        !!! Now, Split particle if needed
+
+        IF ((weight_i/weight_j) >1.000001_num) THEN ! photon is larger
+
+          current_i%weight = weight_j
+
+          CALL create_particle(splitted_particle)
+          splitted_particle%weight          = weight_i - weight_j
+          splitted_particle%part_pos        = current_i%part_pos
+          splitted_particle%part_p          = current_i%part_p
+          splitted_particle%particle_energy = current_i%particle_energy
+          splitted_particle%optical_depth   = current_i%optical_depth
+          CALL add_particle_to_partlist(splitted_phot_list, splitted_particle)
+
+        ELSE IF ((weight_j/weight_i) >1.000001_num) THEN ! lepton is larger
+
+          current_j%weight = weight_i
+
+          CALL create_particle(splitted_particle)
+          splitted_particle%weight          = weight_j - weight_i
+          splitted_particle%part_pos        = current_j%part_pos
+          splitted_particle%part_p          = current_j%part_p
+          splitted_particle%optical_depth   = current_j%optical_depth
+          CALL add_particle_to_partlist(splitted_lept_list, splitted_particle)
+
+        END IF
+
+
+        !!! Update particle momentum
+
+        current_i%part_p = p_phot_lab_sca_si
+        current_i%particle_energy = energy_phot_lab_sca_si
+
+        current_j%part_p = p_lept_lab_sca_si
+
+      END IF ! random() < P_coll
+
+      ! Scattered finished, move pointer to next particle, increment counter
+      current_i => current_i%next
+      current_j => current_j%next
+      N_scattered = N_scattered + 1
+
+    END DO ! While more to scatter
+
+
+  END SUBROUTINE linear_Compton_scattering
+
+
+
   FUNCTION max_weight(p_list)
 
     TYPE(particle_list), INTENT(IN) :: p_list
@@ -2001,7 +2275,6 @@ CONTAINS
   END SUBROUTINE get_orthonormal
 
 
-
   FUNCTION lbw_cross_sec(ze)
 
     REAL(num), INTENT(IN) :: ze
@@ -2013,6 +2286,20 @@ CONTAINS
       * LOG((1.0_num+ze)/(1.0_num-ze)))
 
   END FUNCTION lbw_cross_sec
+
+
+
+  FUNCTION lcs_cross_sec(e)
+
+    REAL(num), INTENT(IN) :: e
+    REAL(num) :: lcs_cross_sec
+
+    lcs_cross_sec = pire2 * ( (1.0_num-2.0_num/e &
+        -2.0_num/e**2)*LOG(1.0_num+2.0_num*e) + 0.5_num &
+        + 4.0_num/e - 0.5_num/(1.0_num+2.0_num*e)**2 ) / e
+
+  END FUNCTION lcs_cross_sec
+
 
 
   FUNCTION random_polar_lbw(v, sigma)
@@ -2039,7 +2326,8 @@ CONTAINS
 
   DO WHILE (ABS(cdf_err_mp) > tolerance_cdf &
         .AND. (ABS(ub-lb)>tolerance_cos_angle))
-    IF (ABS(SIGN(1.0_num, cdf_err_lb) - SIGN(1.0_num, cdf_err_mp)) &
+
+     IF (ABS(SIGN(1.0_num, cdf_err_lb) - SIGN(1.0_num, cdf_err_mp)) &
       < 0.5_num) THEN
       ! lb and mp have same sign
       ! meaning correct value is between mp and ub
@@ -2084,5 +2372,73 @@ CONTAINS
     ! eq. (1) of ppcf. 60. 104001 (2018) by Ribeyre et. al.
     lbw_polar_cdf_err = - quarter_pire2 * temp * big_bracket / sig - rnd
   END FUNCTION lbw_polar_cdf_err
+
+
+
+  FUNCTION random_polar_lcs(en, sigma)
+
+  ! This function generates (the cosine of) a random polar angle
+  ! following the distribution of the differential cross section
+  ! of the lcs process in the c.o.m. frame, by inverse transform
+  ! sampling method using bisection method.
+
+  REAL(num), INTENT(IN) :: en, sigma
+
+  REAL(num) :: rnd_cdf
+  REAL(num) :: lb, ub, mid_point
+  REAL(num) :: cdf_err_lb, cdf_err_mp
+  REAL(num) :: random_polar_lcs
+
+  rnd_cdf = random()
+
+  ! upper bound, lower bound, and mid point of bisection method.
+  lb = -1.0_num
+  ub = 1.0_num
+  mid_point = 0.0_num
+
+  cdf_err_lb = lcs_polar_cdf_err(lb,        rnd_cdf, en, sigma)
+  cdf_err_mp = lcs_polar_cdf_err(mid_point, rnd_cdf, en, sigma)
+
+  DO WHILE (ABS(cdf_err_mp) > tolerance_cdf .AND. (ABS(ub-lb)>tolerance_cos_angle))
+
+     IF (ABS(SIGN(1.0_num, cdf_err_lb) - SIGN(1.0_num, cdf_err_mp)) &
+      < 0.5_num) THEN
+      ! lb and mp have same sign
+      ! meaning correct value is between mp and ub
+        lb = mid_point
+        cdf_err_lb = lcs_polar_cdf_err(lb, rnd_cdf, en, sigma)
+     ELSE
+      ! lb and mp have different sign
+      ! meaning correct value is between lb and mp
+        ub = mid_point
+    END IF
+
+    mid_point = (lb+ub)*0.5_num
+
+    cdf_err_mp = lcs_polar_cdf_err(mid_point, rnd_cdf, en, sigma)
+
+  END DO
+
+  random_polar_lcs = mid_point
+
+  END FUNCTION random_polar_lcs
+
+
+  FUNCTION lcs_polar_cdf_err(mu, rnd, e, sig)
+
+    REAL(num), INTENT(IN) :: mu, rnd, e, sig
+    REAL(num) :: big_bracket, k
+    REAL(num) :: lcs_polar_cdf_err
+
+    k = 1.0_num+e*(1.0_num-mu)
+
+    big_bracket = (1.0_num-2.0_num/e-2.0_num/e**2) &
+        * LOG(k) - 0.5_num/k**2 -((1.0_num+2.0_num*e) &
+        /e**2)/k + (1.0_num-mu)/e +((1.0_num+e)/e)**2 &
+        - 0.5_num
+
+    lcs_polar_cdf_err = pire2 * big_bracket / e / sig - rnd
+
+  END FUNCTION lcs_polar_cdf_err
 #endif
 END MODULE photons

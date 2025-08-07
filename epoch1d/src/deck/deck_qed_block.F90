@@ -49,6 +49,8 @@ CONTAINS
       use_LBW = .FALSE.
       use_LBW_diff = .TRUE.
       LBW_amp_factor = 1.0_num
+      use_LCS = .FALSE.
+      use_LCS_diff = .TRUE.
     END IF
 #endif
 
@@ -80,7 +82,7 @@ CONTAINS
 
     IF (use_qed) need_random_state = .TRUE.
 
-    use_binary_collisions = use_LBW
+    use_binary_collisions = use_LBW .OR. use_LCS
     IF (use_binary_collisions) THEN
       DO j = 1, n_species
         IF (species_list(j)%species_type == c_species_id_photon) THEN
@@ -92,10 +94,10 @@ CONTAINS
         IF (species_list(j)%species_type == c_species_id_positron) THEN
           species_list(j)%make_secondary_list = .TRUE.
         END IF
-    END DO
-  END IF
+      END DO
+    END IF
 
-  lbw_amp_factor = MAX(lbw_amp_factor, 1.0_num)
+    lbw_amp_factor = MAX(lbw_amp_factor, 1.0_num)
 #else
     IF (use_qed) THEN
       IF (rank == 0) THEN
@@ -205,6 +207,16 @@ CONTAINS
 
     IF (str_cmp(element, 'amplify_LBW_factor')) THEN
       LBW_amp_factor = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF(str_cmp(element, 'linear_compton_scattering')) THEN
+      use_LCS = as_logical_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF(str_cmp(element, 'LCS_differential_cross')) THEN
+      use_LCS_diff = as_logical_print(value, element, errcode)
       RETURN
     END IF
 

@@ -616,6 +616,8 @@ MODULE shared_data
   REAL(num) :: photon_sample_fraction = 1.0_num
   LOGICAL :: use_LBW = .FALSE.
   LOGICAL :: use_LBW_diff = .TRUE.
+  LOGICAL :: use_LCS = .FALSE.
+  LOGICAL :: use_LCS_diff = .TRUE.
   REAL(num) :: LBW_amp_factor = 1.0_num
   INTEGER :: lbw_electron_species = -1
   INTEGER :: lbw_positron_species = -1
