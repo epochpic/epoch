@@ -1449,35 +1449,34 @@ CONTAINS
 
   SUBROUTINE do_binary_collisions
 
-    INTEGER :: ispecies, jspecies
+    INTEGER :: is, js
     INTEGER(i8) :: ix, iy, iz
     TYPE(particle_list), POINTER :: p_list1, p_list2
-    TYPE(particle_list) :: new_lbw_electrons, new_lbw_positrons
     TYPE(particle_list) :: splitted_lcs_photons, splitted_lcs_leptons
     
     !!! Linear Breit-Wheeler
     IF (use_LBW) THEN
-      DO ispecies = 1, n_species
-        IF (species_list(ispecies)%species_type /= c_species_id_photon) CYCLE
-        DO jspecies = ispecies, n_species
-          IF (species_list(jspecies)%species_type /= c_species_id_photon) CYCLE
+      DO is = 1, n_species
+        IF (species_list(is)%species_type /= c_species_id_photon) CYCLE
+        DO js = is, n_species
+          IF (species_list(js)%species_type /= c_species_id_photon) CYCLE
           DO ix = 1, nx
             DO iy = 1, ny
               DO iz = 1, nz
                 CALL create_empty_partlist(new_lbw_electrons)
                 CALL create_empty_partlist(new_lbw_positrons)
-                IF (ispecies == jspecies) THEN
-                  p_list1 => species_list(ispecies)%secondary_list(ix,iy,iz)
+                IF (is == js) THEN
+                  p_list1 => species_list(is)%secondary_list(ix,iy,iz)
 
                   CALL linear_Breit_Wheeler_intra( &
-                      p_list1, ispecies, ix, iy, iz, &
+                      p_list1, is, ix, iy, iz, &
                       new_lbw_electrons, new_lbw_positrons)
                 ELSE
-                  p_list1 => species_list(ispecies)%secondary_list(ix,iy,iz)
-                  p_list2 => species_list(jspecies)%secondary_list(ix,iy,iz)
+                  p_list1 => species_list(is)%secondary_list(ix,iy,iz)
+                  p_list2 => species_list(js)%secondary_list(ix,iy,iz)
 
                   CALL linear_Breit_Wheeler_inter( &
-                      p_list1, p_list2, ispecies, jspecies, ix, iy, iz, &
+                      p_list1, p_list2, is, js, ix, iy, iz, &
                       new_lbw_electrons, new_lbw_positrons)
                 END IF
 
@@ -1497,11 +1496,11 @@ CONTAINS
     END IF ! if use_LBW
 
     IF (use_LCS) THEN
-      DO ispecies = 1, n_species
-        IF (species_list(ispecies)%species_type /= c_species_id_photon) CYCLE
-        DO jspecies = 1, n_species
-          IF (species_list(jspecies)%species_type == c_species_id_electron &
-              .OR. species_list(jspecies)%species_type == c_species_id_positron) THEN
+      DO is = 1, n_species
+        IF (species_list(is)%species_type /= c_species_id_photon) CYCLE
+        DO js = 1, n_species
+          IF (species_list(js)%species_type == c_species_id_electron &
+              .OR. species_list(js)%species_type == c_species_id_positron) THEN
             DO ix = 1, nx
               DO iy = 1, ny
                 DO iz = 1, nz
@@ -1509,28 +1508,28 @@ CONTAINS
                   CALL create_empty_partlist(splitted_lcs_photons)
                   CALL create_empty_partlist(splitted_lcs_leptons)
 
-                  p_list1 => species_list(ispecies)%secondary_list(ix,iy,iz)
-                  p_list2 => species_list(jspecies)%secondary_list(ix,iy,iz)
+                  p_list1 => species_list(is)%secondary_list(ix,iy,iz)
+                  p_list2 => species_list(js)%secondary_list(ix,iy,iz)
 
                   CALL linear_Compton_scattering( &
-                      p_list1, p_list2, ispecies, jspecies, ix, iy, iz, &
+                      p_list1, p_list2, is, js, ix, iy, iz, &
                       splitted_lcs_photons, splitted_lcs_leptons)
 
                   IF (splitted_lcs_photons%count > 0) THEN
-                    CALL append_partlist(species_list(ispecies &
+                    CALL append_partlist(species_list(is &
                         )%secondary_list(ix,iy,iz), splitted_lcs_photons)
                   END IF
 
                   IF (splitted_lcs_leptons%count > 0) THEN
-                    CALL append_partlist(species_list(jspecies &
+                    CALL append_partlist(species_list(js &
                        )%secondary_list(ix,iy,iz), splitted_lcs_leptons)
                   END IF
                 END DO ! do iz = 1, nz
               END DO ! do iy = 1, ny
             END DO ! do ix = 1, nx
-          END IF ! jspecies being lepton
-        END DO ! jspecies
-      END DO ! ispecies
+          END IF ! js being lepton
+        END DO ! js
+      END DO ! is
     END IF ! if use_LCS
 
   END SUBROUTINE do_binary_collisions
@@ -2427,7 +2426,8 @@ CONTAINS
   cdf_err_lb = lcs_polar_cdf_err(lb,        rnd_cdf, en, sigma)
   cdf_err_mp = lcs_polar_cdf_err(mid_point, rnd_cdf, en, sigma)
 
-  DO WHILE (ABS(cdf_err_mp) > tolerance_cdf .AND. (ABS(ub-lb)>tolerance_cos_angle))
+  DO WHILE (ABS(cdf_err_mp) > tolerance_cdf &
+      .AND. (ABS(ub-lb)>tolerance_cos_angle))
 
     IF (ABS(SIGN(1.0_num, cdf_err_lb) - SIGN(1.0_num, cdf_err_mp)) &
       < 0.5_num) THEN
