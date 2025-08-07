@@ -1465,39 +1465,34 @@ CONTAINS
 
     IF (use_LCS) THEN
       DO ispecies = 1, n_species
-        IF (species_list(ispecies)%species_type == c_species_id_photon) THEN
-
-          DO jspecies = 1, n_species
-            IF (species_list(jspecies)%species_type == c_species_id_electron &
+        IF (species_list(ispecies)%species_type /= c_species_id_photon) CYCLE
+        DO jspecies = 1, n_species
+          IF (species_list(jspecies)%species_type == c_species_id_electron &
               .OR. species_list(jspecies)%species_type == c_species_id_positron) THEN
+            DO ix = 1, nx
 
-              DO ix = 1, nx
+              CALL create_empty_partlist(splitted_lcs_photons)
+              CALL create_empty_partlist(splitted_lcs_leptons)
 
-                CALL create_empty_partlist(splitted_lcs_photons)
-                CALL create_empty_partlist(splitted_lcs_leptons)
+              p_list1 => species_list(ispecies)%secondary_list(ix)
+              p_list2 => species_list(jspecies)%secondary_list(ix)
 
-                p_list1 => species_list(ispecies)%secondary_list(ix)
-                p_list2 => species_list(jspecies)%secondary_list(ix)
+              CALL linear_Compton_scattering( &
+                    p_list1, p_list2, ispecies, jspecies, ix, &
+                    splitted_lcs_photons, splitted_lcs_leptons)
 
-                CALL linear_Compton_scattering( &
-                      p_list1, p_list2, ispecies, jspecies, ix, &
-                      splitted_lcs_photons, splitted_lcs_leptons)
+              IF (splitted_lcs_photons%count > 0) THEN
+                CALL append_partlist(species_list(ispecies &
+                    )%secondary_list(ix), splitted_lcs_photons)
+              END IF
 
-
-                IF (splitted_lcs_photons%count > 0) THEN
-                  CALL append_partlist(species_list(ispecies &
-                      )%secondary_list(ix), splitted_lcs_photons)
-                END IF
-
-                IF (splitted_lcs_leptons%count > 0) THEN
-                  CALL append_partlist(species_list(jspecies &
-                    )%secondary_list(ix), splitted_lcs_leptons)
-                END IF
-
-              END DO ! do ix = 1, nx
-            END IF ! jspecies being lepton
-          END DO ! jspecies
-        END IF ! ispecies being photon
+              IF (splitted_lcs_leptons%count > 0) THEN
+                CALL append_partlist(species_list(jspecies &
+                  )%secondary_list(ix), splitted_lcs_leptons)
+              END IF
+            END DO ! do ix = 1, nx
+          END IF ! jspecies being lepton
+        END DO ! jspecies
       END DO ! ispecies
     END IF ! if use_LCS
 
