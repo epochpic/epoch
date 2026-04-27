@@ -88,6 +88,7 @@ CONTAINS
       ALLOCATE(auto_electrons(4))
       release_species = ''
       release_species_list = ''
+      species_names = ''
     END IF
 
   END SUBROUTINE species_deck_initialise
