@@ -83,6 +83,7 @@ CONTAINS
     REAL(num) :: part_m, part_mc, part_mcc, part_mc2, gamma_mass, csqr, charge
 #ifdef PHOTONS
     REAL(num) :: part_e, dir_x, dir_y, dir_z, norm, part_x, part_y, part_z
+    REAL(num) :: part_ux, part_uy, part_uz, gamma_rel
 #endif
     IF (start)  THEN
       CALL start_particle_list(current_species, current_list, cur)
@@ -363,6 +364,21 @@ CONTAINS
             part_count = part_count + 1
             array(part_count) = calculate_chi(part_x, part_y, part_z, &
                 dir_x, dir_y, dir_z, part_e)
+            cur => cur%next
+          END DO
+        ELSE IF (current_species%species_type == c_species_id_electron .OR. &
+            current_species%species_type == c_species_id_positron) THEN
+          DO WHILE (ASSOCIATED(cur) .AND. (part_count < npoint_it))
+            part_x = cur%part_pos(1) - x_grid_min_local
+            part_y = cur%part_pos(2) - y_grid_min_local
+            part_z  = cur%part_pos(3) - z_grid_min_local
+            part_ux = cur%part_p(1) / mc0
+            part_uy = cur%part_p(2) / mc0
+            part_uz = cur%part_p(3) / mc0
+            gamma_rel = SQRT(part_ux**2 + part_uy**2 + part_uz**2 + 1.0_num)
+            part_count = part_count + 1
+            array(part_count) = calculate_eta(part_x, part_y, part_z, &
+                part_ux, part_uy, part_uz, gamma_rel)
             cur => cur%next
           END DO
         ELSE
