@@ -714,6 +714,10 @@ CONTAINS
 
     IF (opcode == c_func_rho) THEN
       CALL copy_stack(species_list(id)%density_function, func_stack)
+    ELSE IF (opcode == c_func_temp) THEN
+      CALL copy_stack(species_list(id)%temperature_function(1), func_stack)
+      CALL copy_stack(species_list(id)%temperature_function(2), func_stack)
+      CALL copy_stack(species_list(id)%temperature_function(3), func_stack)
     ELSE IF (opcode == c_func_tempx) THEN
       CALL copy_stack(species_list(id)%temperature_function(1), func_stack)
     ELSE IF (opcode == c_func_tempy) THEN
