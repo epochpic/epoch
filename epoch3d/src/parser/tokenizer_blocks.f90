@@ -541,6 +541,12 @@ CONTAINS
         .OR. str_cmp(name, 'number_density')) THEN
       as_function = c_func_rho
 
+    ELSE IF (str_cmp(name, 'temp') &
+        .OR. str_cmp(name, 'temp_k') &
+        .OR. str_cmp(name, 'temperature') &
+        .OR. str_cmp(name, 'temperature_k')) THEN
+      as_function = c_func_temp
+
     ELSE IF (str_cmp(name, 'temp_x') &
         .OR. str_cmp(name, 'temp_x_k') &
         .OR. str_cmp(name, 'temperature_x') &
