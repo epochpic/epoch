@@ -230,8 +230,8 @@ CONTAINS
 #ifndef NO_PARTICLE_PROBES
       current_probe => species_list(ispecies)%attached_probes
       probes_for_species = ASSOCIATED(current_probe)
-#if defined(PARTICLE_ID) || defined(PARTICLE_ID4) 
-      IF (probes_for_species) THEN 
+#if defined(PARTICLE_ID) || defined(PARTICLE_ID4)
+      IF (probes_for_species) THEN
         CALL generate_particle_ids(species_list(ispecies)%attached_list)
         current => species_list(ispecies)%attached_list%head
       END IF
@@ -717,6 +717,18 @@ CONTAINS
     REAL(num) :: path_frac
 #endif
 
+    ! If particle id is enabled this must be done on all ranks
+#ifndef NO_PARTICLE_PROBES
+    current_probe => species_list(ispecies)%attached_probes
+    probes_for_species = ASSOCIATED(current_probe)
+#if defined(PARTICLE_ID) || defined(PARTICLE_ID4)
+    IF (probes_for_species) THEN
+      CALL generate_particle_ids(species_list(ispecies)%attached_list)
+    END IF
+#endif
+#endif
+
+    ! Return if local particle count is zero
     IF (species_list(ispecies)%attached_list%count == 0) RETURN
 
     bc_species = species_list(ispecies)%bc_particle
@@ -760,15 +772,6 @@ CONTAINS
     NULLIFY(bnd_part_next)
     bnd_part_last => species_list(ispecies)%boundary_particles
 
-#ifndef NO_PARTICLE_PROBES
-    current_probe => species_list(ispecies)%attached_probes
-    probes_for_species = ASSOCIATED(current_probe)
-#if defined(PARTICLE_ID) || defined(PARTICLE_ID4) 
-    IF (probes_for_species) THEN 
-      CALL generate_particle_ids(species_list(ispecies)%attached_list)
-    END IF
-#endif
-#endif
     dtfac = dt * c**2
 
     ! set current to point to head of list
