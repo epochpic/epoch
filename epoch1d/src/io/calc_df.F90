@@ -998,10 +998,14 @@ CONTAINS
 #endif
       current => io_list(ispecies)%attached_list%head
       sqrt_part_m  = SQRT(io_list(ispecies)%mass)
+      part_w = io_list(ispecies)%weight
 
       DO WHILE(ASSOCIATED(current))
 #ifdef PER_PARTICLE_CHARGE_MASS
         sqrt_part_m  = SQRT(current%mass)
+#endif
+#ifndef PER_SPECIES_WEIGHT
+        part_w = current%weight
 #endif
         ! Copy the particle properties out for speed
         part_pmx = current%part_p(1) / sqrt_part_m
@@ -1013,28 +1017,28 @@ CONTAINS
         SELECT CASE(dir)
           CASE(c_dir_x)
             DO ix = sf_min, sf_max
-              gf = gx(ix)
+              gf = gx(ix) * part_w
               wdata = (part_pmx - meanx(cell_x+ix))**2
               sigma(cell_x+ix) = sigma(cell_x+ix) + gf * wdata
               part_count(cell_x+ix) = part_count(cell_x+ix) + gf
             END DO
           CASE(c_dir_y)
             DO ix = sf_min, sf_max
-              gf = gx(ix)
+              gf = gx(ix) * part_w
               wdata = (part_pmy - meany(cell_x+ix))**2
               sigma(cell_x+ix) = sigma(cell_x+ix) + gf * wdata
               part_count(cell_x+ix) = part_count(cell_x+ix) + gf
             END DO
           CASE(c_dir_z)
             DO ix = sf_min, sf_max
-              gf = gx(ix)
+              gf = gx(ix) * part_w
               wdata = (part_pmz - meanz(cell_x+ix))**2
               sigma(cell_x+ix) = sigma(cell_x+ix) + gf * wdata
               part_count(cell_x+ix) = part_count(cell_x+ix) + gf
             END DO
           CASE DEFAULT
             DO ix = sf_min, sf_max
-              gf = gx(ix)
+              gf = gx(ix) * part_w
               wdata = (part_pmx - meanx(cell_x+ix))**2 &
                     + (part_pmy - meany(cell_x+ix))**2 &
                     + (part_pmz - meanz(cell_x+ix))**2
