@@ -1099,10 +1099,14 @@ CONTAINS
 #endif
       current => io_list(ispecies)%attached_list%head
       sqrt_part_m  = SQRT(io_list(ispecies)%mass)
+      part_w = io_list(ispecies)%weight
 
       DO WHILE(ASSOCIATED(current))
 #ifdef PER_PARTICLE_CHARGE_MASS
         sqrt_part_m  = SQRT(current%mass)
+#endif
+#ifndef PER_SPECIES_WEIGHT
+        part_w = current%weight
 #endif
         ! Copy the particle properties out for speed
         part_pmx = current%part_p(1) / sqrt_part_m
@@ -1116,7 +1120,7 @@ CONTAINS
             DO iz = sf_min, sf_max
             DO iy = sf_min, sf_max
             DO ix = sf_min, sf_max
-              gf = gx(ix) * gy(iy) * gz(iz)
+              gf = gx(ix) * gy(iy) * gz(iz) * part_w
               wdata = (part_pmx - meanx(cell_x+ix, cell_y+iy, cell_z+iz))**2
               sigma(cell_x+ix, cell_y+iy, cell_z+iz) = &
                   sigma(cell_x+ix, cell_y+iy, cell_z+iz) + gf * wdata
@@ -1129,7 +1133,7 @@ CONTAINS
             DO iz = sf_min, sf_max
             DO iy = sf_min, sf_max
             DO ix = sf_min, sf_max
-              gf = gx(ix) * gy(iy) * gz(iz)
+              gf = gx(ix) * gy(iy) * gz(iz) * part_w
               wdata = (part_pmy - meany(cell_x+ix, cell_y+iy, cell_z+iz))**2
               sigma(cell_x+ix, cell_y+iy, cell_z+iz) = &
                   sigma(cell_x+ix, cell_y+iy, cell_z+iz) + gf * wdata
@@ -1142,7 +1146,7 @@ CONTAINS
             DO iz = sf_min, sf_max
             DO iy = sf_min, sf_max
             DO ix = sf_min, sf_max
-              gf = gx(ix) * gy(iy) * gz(iz)
+              gf = gx(ix) * gy(iy) * gz(iz) * part_w
               wdata = (part_pmz - meanz(cell_x+ix, cell_y+iy, cell_z+iz))**2
               sigma(cell_x+ix, cell_y+iy, cell_z+iz) = &
                   sigma(cell_x+ix, cell_y+iy, cell_z+iz) + gf * wdata
@@ -1155,7 +1159,7 @@ CONTAINS
             DO iz = sf_min, sf_max
             DO iy = sf_min, sf_max
             DO ix = sf_min, sf_max
-              gf = gx(ix) * gy(iy) * gz(iz)
+              gf = gx(ix) * gy(iy) * gz(iz) * part_w
               wdata = (part_pmx - meanx(cell_x+ix, cell_y+iy, cell_z+iz))**2 &
                     + (part_pmy - meany(cell_x+ix, cell_y+iy, cell_z+iz))**2 &
                     + (part_pmz - meanz(cell_x+ix, cell_y+iy, cell_z+iz))**2

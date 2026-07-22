@@ -1453,6 +1453,7 @@ CONTAINS
     meanz = meanz / part_count
 
     sqrt_part_m  = SQRT(species_list(ispecies)%mass)
+    part_w = species_list(ispecies)%weight
 
     part_count = 0.0_num
     DO jz = 1, nz
@@ -1464,6 +1465,9 @@ CONTAINS
 #ifdef PER_PARTICLE_CHARGE_MASS
         sqrt_part_m  = SQRT(current%mass)
 #endif
+#ifndef PER_SPECIES_WEIGHT
+        part_w = current%weight
+#endif
         ! Copy the particle properties out for speed
         part_pmx = current%part_p(1) / sqrt_part_m
         part_pmy = current%part_p(2) / sqrt_part_m
@@ -1474,7 +1478,7 @@ CONTAINS
         DO iz = sf_min, sf_max
         DO iy = sf_min, sf_max
         DO ix = sf_min, sf_max
-          gf = gx(ix) * gy(iy) * gz(iz)
+          gf = gx(ix) * gy(iy) * gz(iz) * part_w
           sigma(cell_x+ix, cell_y+iy, cell_z+iz) = &
               sigma(cell_x+ix, cell_y+iy, cell_z+iz) + gf &
               * ((part_pmx - meanx(cell_x+ix, cell_y+iy, cell_z+iz))**2 &
