@@ -574,6 +574,9 @@ CONTAINS
 #ifdef PHOTONS
     ELSE IF (str_cmp(element, 'optical_depth')) THEN
       elementselected = c_dump_part_opdepth
+
+    ELSE IF (str_cmp(element, 'qed_chi')) THEN
+      elementselected = c_dump_part_qed_chi
 #endif
 
 #if defined(PHOTONS) || defined(BREMSSTRAHLUNG)

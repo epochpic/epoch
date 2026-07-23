@@ -610,7 +610,8 @@ CONTAINS
 
           current%optical_depth = current%optical_depth &
               - delta_optical_depth_photon(chi_val, part_e)
-          ! If optical depth dropped below zero generate pair...
+          ! If optical depth dropped below zero generate pair
+          ! Photon will be deleted
           IF (current%optical_depth < 0.0_num) THEN
             CALL generate_pair(current, chi_val, photon_species, &
                 breit_wheeler_electron_species, breit_wheeler_positron_species)
@@ -683,7 +684,10 @@ CONTAINS
     REAL(num) :: e_at_part(3), b_at_part(3)
     REAL(num) :: beta_x, beta_y, beta_z
     REAL(num) :: flperp(3), i_e, tau0, roland_eta
-    REAL(num) :: lambdac, coeff_eta, moduclip, moduclip2, u_dot_e
+    REAL(num) :: moduclip, moduclip2, u_dot_e
+    REAL(num), PARAMETER :: lambdac = h_bar / mc0
+    REAL(num), PARAMETER :: coeff_eta = SQRT(3.0_num * lambdac &
+        / (2.0_num * alpha_f * m0 * c**3))
 
     CALL field_at_particle(part_x, part_y, e_at_part, b_at_part)
 
@@ -693,10 +697,6 @@ CONTAINS
     beta_x = part_ux / gamma_rel
     beta_y = part_uy / gamma_rel
     beta_z = part_uz / gamma_rel
-
-    lambdac = h_bar / mc0
-
-    coeff_eta = SQRT(3.0_num * lambdac / (2.0_num * alpha_f * m0 * c**3))
 
     u_dot_e = (part_ux * e_at_part(1) + part_uy * e_at_part(2) &
         + part_uz * e_at_part(3)) / moduclip2

@@ -635,6 +635,9 @@ CONTAINS
 #ifdef PHOTONS
         CALL write_particle_variable(c_dump_part_opdepth, code, &
             'Optical depth', '', it_output_real)
+
+        CALL write_particle_variable(c_dump_part_qed_chi, code, &
+            'Chi', '', it_output_real)
 #endif
 #if defined(PHOTONS) || defined(BREMSSTRAHLUNG)
         CALL write_particle_variable(c_dump_part_qed_energy, code, &

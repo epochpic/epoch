@@ -523,7 +523,7 @@ injectors.o: injectors.F90 evaluate.o file_injectors.o particle_temperature.o \
 ionise.o: ionise.F90 boundary.o calc_df.o numerics.o partlist.o \
   random_generator.o utilities.o
 iterators.o: iterators.F90 particle_id_hash.o particle_pointer_advance.o \
-  partlist.o
+  partlist.o photons.o
 laser.o: laser.f90 custom_laser.o evaluate.o
 mpi_routines.o: mpi_routines.F90 helper.o
 mpi_subtype_control.o: mpi_subtype_control.f90 shared_data.o
