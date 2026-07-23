@@ -662,13 +662,15 @@ MODULE shared_data
   LOGICAL :: use_LBW = .FALSE.
   LOGICAL :: use_LBW_diff = .TRUE.
   REAL(num) :: LBW_amp_factor = 1.0_num
+  LOGICAL :: use_LCS = .FALSE.
+  LOGICAL :: use_LCS_diff = .TRUE.
   INTEGER :: lbw_electron_species = -1
   INTEGER :: lbw_positron_species = -1
   REAL(num), PARAMETER :: tolerance_cdf       = 1.0e-6_num
   REAL(num), PARAMETER :: tolerance_cos_angle = 1.0e-6_num
 #endif
-  LOGICAL :: use_binary_collisions = .FALSE.
   LOGICAL :: use_qed = .FALSE.
+  LOGICAL :: use_binary_collisions = .FALSE.
 #ifdef BREMSSTRAHLUNG
   !----------------------------------------------------------------------------
   ! Bremsstrahlung

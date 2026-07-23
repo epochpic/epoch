@@ -218,7 +218,6 @@ PROGRAM pic
       CALL push_particles
 
       IF (use_particle_lists .OR. use_binary_collisions) THEN
-
         ! Check whether this is a step with collisions or collisional ionisation
         collision_step = (MODULO(step, coll_n_step) == coll_n_step - 1) &
           .AND. use_collisions

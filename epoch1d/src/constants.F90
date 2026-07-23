@@ -234,9 +234,14 @@ MODULE constants
   REAL(num), PARAMETER :: classical_re = 0.25_num / pi / epsilon0 / m0 &
       * (q0 / c)**2
   REAL(num), PARAMETER :: sigma_lBW_max = pi * classical_re**2 * &
-          0.6817055055017870382984600045421994441648264608312_num
+      0.6817055055017870382984600045421994441648264608312_num
+  REAL(num), PARAMETER :: sigma_thomson = 8.0_num * pi / 3.0_num &
+      * classical_re**2
   REAL(num), PARAMETER :: inv_c = 1.0_num / c
   REAL(num), PARAMETER :: inv_mc0_sq = 1.0_num / mc0 / mc0
+  REAL(num), PARAMETER :: inv_mc0 = 1.0_num / mc0
+  REAL(num), PARAMETER :: inv_m0c2 = 1.0_num / m0c2
+  REAL(num), PARAMETER :: pire2 = pi * classical_re**2
   REAL(num), PARAMETER :: half_pire2 = 0.5_num * pi * classical_re**2
   REAL(num), PARAMETER :: quarter_pire2 = 0.25_num * pi * classical_re**2
 #endif
