@@ -1,0 +1,499 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{parskip}
+
+\lstdefinestyle{deck}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true
+}
+\lstdefinestyle{python}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  commentstyle=\color{gray},
+  showstringspaces=false
+}
+
+\title{Custom Laser Profile Injection}
+\author{Zheyuan Chen \\ York Plasma Institute, University of York}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+This document describes the modifications made to EPOCH's \texttt{laser}
+block to support loading arbitrary laser amplitude and phase profiles from
+raw binary data files\footnote{\url{https://epochpic.github.io/documentation/input_deck/binary_files.html}}.
+See the EPOCH documentation\footnote{\url{https://epochpic.github.io/documentation/input_deck/input_deck_laser.html}}
+for the standard \texttt{laser} block parameters that are not covered here.
+
+The custom profile injection feature allows a laser field of the form
+$E = A \cdot \sin(\omega t + \varphi)$ --- with $A$ and $\varphi$ arbitrary
+functions of the transverse boundary coordinates and (optionally) time ---
+to be driven entirely from externally generated data files, bypassing
+EPOCH's built-in analytic profile functions. This is particularly useful
+when interfacing with external beam propagation codes such as
+LASY\footnote{\url{https://github.com/LASY-org/lasy}}, or when the target
+profile cannot be expressed as one of EPOCH's analytic primitives. A Python
+wrapper for LASY written by the same author can be found
+here\footnote{\url{https://github.com/ZheyuanChen/AELP/tree/main}}.
+
+The feature is implemented in \textbf{epoch2d} and \textbf{epoch3d}. epoch1d is unmodified.
+
+Two modes exist, selected per laser block:
+
+\begin{itemize}
+  \item \textbf{Spatiotemporal} (\texttt{use\_spatiotemporal\_profile = T}):
+    the full amplitude $A(\mathrm{transverse}, t)$ is interpolated from
+    file at every time step. In 2D the data is $A(y, t)$; in 3D it is
+    $A(\mathrm{tr1}, \mathrm{tr2}, t)$.
+  \item \textbf{Static spatial} (\texttt{use\_spatiotemporal\_profile = F}):
+    a time-independent spatial profile is interpolated onto the boundary
+    once at start-up; the temporal envelope is set analytically in the
+    deck via \texttt{t\_profile}.
+\end{itemize}
+
+In both modes the phase can also be read from file with
+\texttt{use\_phase\_from\_file = T}, on the same grid as the amplitude.
+
+\textbf{Note on defaults:} when \texttt{use\_custom\_profile = T} and
+\texttt{use\_spatiotemporal\_profile} is not given, epoch2d defaults to the
+spatiotemporal mode (\texttt{T}) while epoch3d defaults to the static
+spatial mode (\texttt{F}). Setting the flag explicitly is recommended.
+
+\section{EPOCH2D}
+
+An example 2D \texttt{laser} block using all custom profile features:
+
+\begin{lstlisting}[style=deck]
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 1e22
+  lambda = 1.0 * micron
+  pol = 0
+
+  use_custom_profile = T
+  use_spatiotemporal_profile = T
+  profile_data_file = amplitude.dat
+
+  n_t = 50
+  n_y = 30
+  y_min = -10.0 * micron
+  y_max =  10.0 * micron
+  t_start = 0.0
+  t_end = 30e-15
+
+  use_phase_from_file = T
+  phase_data_file = phase.dat
+end:laser
+\end{lstlisting}
+
+A 2D custom-profile laser block accepts the following parameters:
+
+\begin{description}
+  \item[\texttt{use\_custom\_profile}] Enable custom profile injection.
+    Must be set to \texttt{T} to activate any of the parameters below. The
+    default is \texttt{F}, which leaves all standard EPOCH profile
+    behaviour unchanged.
+
+  \item[\texttt{use\_spatiotemporal\_profile}] When \texttt{T}, the full
+    two-dimensional $A(y, t)$ amplitude is read from a raw binary file and
+    re-interpolated at every time step. When \texttt{F}, a one-dimensional
+    static spatial profile $A(y)$ is read (also raw binary) and
+    interpolated onto the boundary once at start-up; the temporal
+    envelope is then set analytically via \texttt{t\_profile}. Defaults
+    to \texttt{T} in epoch2d. 
+
+  \item[\texttt{profile\_data\_file}] Path to the amplitude file. Relative
+    paths resolve from the deck's data directory; absolute paths are used
+    as-is. Defaults to \texttt{temporal\_spatial\_profile.dat}
+    (spatiotemporal) or \texttt{spatial\_profile.dat} (static) if
+    omitted.
+
+  \item[\texttt{n\_t\_points} / \texttt{n\_t}] Number of time points in
+    the profile array. Mandatory when
+    \texttt{use\_spatiotemporal\_profile = T}.
+
+  \item[\texttt{n\_transverse\_points} / \texttt{n\_y}] Number of
+    transverse spatial points in the profile array ($\geq 2$). Mandatory
+    whenever \texttt{use\_custom\_profile = T} (both modes).
+
+  \item[\texttt{profile\_transverse\_min} / \texttt{y\_min}] Minimum
+    transverse coordinate of the profile grid (metres). Mandatory
+    whenever \texttt{use\_custom\_profile = T}. (For a laser on
+    \texttt{y\_min}/\texttt{y\_max} the transverse axis is physically
+    $x$; the \texttt{y\_min} alias name is kept for backward
+    compatibility, but the boundary-agnostic
+    \texttt{profile\_transverse\_min} reads better there.)
+
+  \item[\texttt{profile\_transverse\_max} / \texttt{y\_max}] Maximum
+    transverse coordinate of the profile grid (metres). Mandatory
+    whenever \texttt{use\_custom\_profile = T}.
+
+  \item[\texttt{t\_start}, \texttt{t\_end}] Start and end times of the
+    profile grid (seconds). These reuse EPOCH's standard laser elements;
+    the profile time axis runs from \texttt{t\_start} to \texttt{t\_end}
+    with \texttt{n\_t} uniformly spaced points. Outside this window the
+    laser is inactive.
+
+  \item[\texttt{use\_phase\_from\_file}] When \texttt{T}, the phase is
+    also read from file: on the spatiotemporal path $\varphi(y, t)$ is
+    re-interpolated each time step; on the static path $\varphi(y)$ is
+    interpolated once at start-up. Any \texttt{phase = ...} expression in
+    the deck is ignored. Defaults to \texttt{F}, in which case the phase
+    is set as normal via the \texttt{phase} deck element.
+
+  \item[\texttt{phase\_data\_file}] Path to the raw binary phase file
+    (radians). Follows the same path resolution as
+    \texttt{profile\_data\_file}. The phase file must lie on the same
+    grid as the amplitude file (same \texttt{n\_t}, \texttt{n\_y},
+    bounds, \texttt{t\_start}, \texttt{t\_end}). Defaults to
+    \texttt{phase\_profile.dat} if omitted.
+\end{description}
+
+\section{EPOCH3D}
+
+In 3D the boundary plane has two transverse axes, so the grid declaration
+uses two transverse point counts and two pairs of bounds. The
+boundary-agnostic names are \texttt{tr1} and \texttt{tr2}, whose physical
+meaning depends on the boundary the laser is attached to:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Boundary & tr1 axis & tr2 axis \\
+\midrule
+\texttt{x\_min}/\texttt{x\_max} & y & z \\
+\texttt{y\_min}/\texttt{y\_max} & x & z \\
+\texttt{z\_min}/\texttt{z\_max} & x & y \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+An example 3D \texttt{laser} block (spatiotemporal, amplitude + phase, on
+\texttt{x\_min}, written with the axis-named aliases):
+
+\begin{lstlisting}[style=deck]
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 1e22
+  lambda = 1.0 * micron
+  pol = 0
+
+  use_custom_profile = T
+  use_spatiotemporal_profile = T
+  profile_data_file = amplitude.dat
+
+  n_y_points = 48
+  n_z_points = 40
+  n_t_points = 16
+  y_min = -8.0 * micron
+  y_max =  8.0 * micron
+  z_min = -8.0 * micron
+  z_max =  8.0 * micron
+  t_start = 0.0
+  t_end = 60e-15
+
+  use_phase_from_file = T
+  phase_data_file = phase.dat
+end:laser
+\end{lstlisting}
+
+The same block written with the boundary-agnostic names (useful for decks
+generated by boundary-independent tooling):
+
+\begin{lstlisting}[style=deck]
+  n_tr1 = 48
+  n_tr2 = 40
+  n_t = 16
+  tr1_min = -8.0 * micron
+  tr1_max =  8.0 * micron
+  tr2_min = -8.0 * micron
+  tr2_max =  8.0 * micron
+\end{lstlisting}
+
+A 3D custom-profile laser block accepts the following parameters (in
+addition to \texttt{use\_custom\_profile},
+\texttt{use\_spatiotemporal\_profile}, \texttt{profile\_data\_file},
+\texttt{use\_phase\_from\_file}, \texttt{phase\_data\_file},
+\texttt{t\_start} and \texttt{t\_end}, which behave exactly as in 2D):
+
+\begin{description}
+  \item[\texttt{n\_transverse1\_points} / \texttt{n\_tr1}] Number of
+    points along the first transverse axis (see the table above).
+    Mandatory ($\geq 2$) whenever \texttt{use\_custom\_profile = T}.
+
+  \item[\texttt{n\_transverse2\_points} / \texttt{n\_tr2}] Number of
+    points along the second transverse axis. Mandatory ($\geq 2$)
+    whenever \texttt{use\_custom\_profile = T}.
+
+  \item[\texttt{n\_t\_points} / \texttt{n\_t}] Number of time points.
+    Mandatory ($\geq 2$) when \texttt{use\_spatiotemporal\_profile = T};
+    ignored on the static spatial path.
+
+  \item[\texttt{profile\_transverse1\_min} / \texttt{tr1\_min},
+    \texttt{profile\_transverse1\_max} / \texttt{tr1\_max}] Bounds of the
+    profile grid along the first transverse axis (metres). Mandatory
+    whenever \texttt{use\_custom\_profile = T}.
+
+  \item[\texttt{profile\_transverse2\_min} / \texttt{tr2\_min},
+    \texttt{profile\_transverse2\_max} / \texttt{tr2\_max}] Bounds along
+    the second transverse axis (metres). Mandatory whenever
+    \texttt{use\_custom\_profile = T}.
+
+  \item[\texttt{n\_\{x,y,z\}\_points} / \texttt{n\_\{x,y,z\}},
+    \texttt{\{x,y,z\}\_min}, \texttt{\{x,y,z\}\_max}] Axis-named aliases
+    for the point counts and bounds above. These are resolved to
+    \texttt{tr1} or \texttt{tr2} according to the boundary table, so a
+    deck for an \texttt{x\_min} laser can say
+    \texttt{n\_y\_points}/\texttt{n\_z\_points} and
+    \texttt{y\_min}...\texttt{z\_max} naturally. Naming the propagation
+    axis (e.g.\ \texttt{n\_x\_points} on an \texttt{x\_min} laser) is an
+    error --- EPOCH reports the offending element and line and suggests
+    the transverse or boundary-agnostic names.
+\end{description}
+
+As in epoch2d, the static spatial path uses the raw binary format: the phase plane is
+interpolated onto the boundary once at start-up alongside the amplitude.
+
+\section{File Format}
+
+All data files are raw binary with no embedded header. Shape and grid
+bounds are declared entirely in the deck (see above). This matches
+EPOCH's documented binary-file convention used elsewhere in the code
+(e.g.\ \texttt{particles\_from\_file}). EPOCH checks the file size
+against the declared shape at load time and aborts with the expected and
+actual byte counts if they disagree. Note that the size check cannot
+detect a transposed array of the same total size --- the axis ordering
+below must be respected.
+
+Each file contains an array of 64-bit IEEE~754 floating point values (the
+same precision as EPOCH's \texttt{REAL(num)} type), written in
+Fortran-compatible column-major order:
+
+\begin{itemize}
+  \item \textbf{2D spatiotemporal} $A(y, t)$: transverse $y$
+    fastest-varying, time slowest. $n_y \times n_t$ values.
+  \item \textbf{2D static spatial} $A(y)$: a single line of $n_y$ values.
+  \item \textbf{3D spatiotemporal} $A(\mathrm{tr1}, \mathrm{tr2}, t)$:
+    tr1 fastest-varying, then tr2, time slowest.
+    $n_{\mathrm{tr1}} \times n_{\mathrm{tr2}} \times n_t$ values.
+  \item \textbf{3D static spatial} $A(\mathrm{tr1}, \mathrm{tr2})$: tr1
+    fastest-varying. $n_{\mathrm{tr1}} \times n_{\mathrm{tr2}}$ values.
+\end{itemize}
+
+All grids must be uniform; EPOCH reconstructs the axes from the declared
+bounds and point counts (\texttt{np.linspace} on the Python side).
+Amplitude values should be normalised to the range $[0, 1]$; EPOCH
+multiplies by the peak field derived from \texttt{intensity\_w\_cm2} (or
+\texttt{amp}). Phase values are in radians and are used directly ---
+EPOCH adds no constant offset.
+
+Interpolation is linear in every axis (bilinear for 2D spatiotemporal and
+3D static, trilinear for 3D spatiotemporal). On the spatiotemporal path,
+positions outside the declared transverse bounds return \textbf{zero}
+amplitude and phase; on the static paths, positions outside the file grid
+are \textbf{clamped} to the edge values. In either case the profile grid
+should comfortably cover the boundary region the laser is meant to
+illuminate.
+
+\subsection{Laser profile generators}
+
+The Fortran column-major layouts above correspond to NumPy arrays in
+default C (row-major) order with the axes reversed, written with
+\texttt{.tofile()} --- \textbf{no transpose is needed} in either
+dimension:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+File & NumPy shape (C order) \\
+\midrule
+2D spatiotemporal & $(n_t, n_y)$ \\
+2D static spatial & $(n_y,)$ \\
+3D spatiotemporal & $(n_t, n_{\mathrm{tr2}}, n_{\mathrm{tr1}})$ \\
+3D static spatial & $(n_{\mathrm{tr2}}, n_{\mathrm{tr1}})$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+2D example:
+
+\begin{lstlisting}[style=python]
+import numpy as np
+
+N_T   = 50
+N_Y   = 30
+Y_MIN, Y_MAX   = -10e-6, 10e-6
+T_START, T_END = 0.0, 30e-15
+
+y = np.linspace(Y_MIN, Y_MAX, N_Y)
+t = np.linspace(T_START, T_END, N_T)
+
+# meshgrid with indexing="ij" gives arr[t_index, y_index]
+Tg, Yg = np.meshgrid(t, y, indexing="ij")
+
+# --- fill amplitude (values in [0, 1]) ---
+t0, tau = 15e-15, 5e-15
+w0 = 3e-6
+amplitude = np.exp(-((Tg - t0) / tau)**2) * np.exp(-(Yg / w0)**2)
+
+assert amplitude.shape == (N_T, N_Y)
+amplitude.astype(np.float64).tofile("amplitude.dat")
+
+# --- fill phase (values in radians) ---
+phase = np.zeros((N_T, N_Y))  # flat phase for a plane wave
+phase.astype(np.float64).tofile("phase.dat")
+\end{lstlisting}
+
+3D example (for an \texttt{x\_min} laser, so tr1 = y and tr2 = z):
+
+\begin{lstlisting}[style=python]
+import numpy as np
+
+N_Y, N_Z, N_T  = 48, 40, 16          # n_tr1, n_tr2, n_t in the deck
+Y_MIN, Y_MAX   = -8e-6, 8e-6
+Z_MIN, Z_MAX   = -8e-6, 8e-6
+T_START, T_END = 0.0, 60e-15
+
+y = np.linspace(Y_MIN, Y_MAX, N_Y)
+z = np.linspace(Z_MIN, Z_MAX, N_Z)
+t = np.linspace(T_START, T_END, N_T)
+
+# indexing="ij" gives arr[t_index, z_index, y_index] = (n_t, n_tr2, n_tr1)
+Tg, Zg, Yg = np.meshgrid(t, z, y, indexing="ij")
+
+t0, tau = 30e-15, 10e-15
+w0 = 3e-6
+amplitude = (np.exp(-((Tg - t0) / tau)**2)
+             * np.exp(-(Yg**2 + Zg**2) / w0**2))
+
+assert amplitude.shape == (N_T, N_Z, N_Y)
+amplitude.astype(np.float64).tofile("amplitude.dat")
+
+phase = np.zeros((N_T, N_Z, N_Y))
+phase.astype(np.float64).tofile("phase.dat")
+\end{lstlisting}
+
+\section{Phase Convention}
+
+EPOCH injects the field as:
+
+\begin{equation}
+E \propto \mathrm{profile} \cdot \sin(\omega t + \mathrm{phase})
+\end{equation}
+
+where $\omega t$ (the carrier phase) is accumulated internally by EPOCH.
+The phase file must therefore contain only the slowly varying envelope
+phase, not the carrier. This applies identically in 2D and 3D.
+
+When using a complex envelope from LASY (where the physical field is
+$E = \mathrm{Re}[E \cdot \exp(-i\omega_0 t)] = |E| \cdot \cos(\omega_0 t -
+\varphi)$), the required conversion is:
+
+\begin{equation}
+\mathrm{phase\_epoch} = -(\mathrm{phase\_lasy} - \phi_{\mathrm{ref}}) -
+\mathrm{gouy\_phase}
+\end{equation}
+
+where $\phi_{\mathrm{ref}} = \angle E(\mathrm{on\ axis}, t = t_{\mathrm{peak}})$
+is the on-axis phase at peak time (which removes the arbitrary global
+piston phase introduced by the propagator), and $\mathrm{gouy\_phase}$
+pins the result to EPOCH's carrier convention. A $\pi/2$ offset converts
+$\cos \to \sin$ but as a constant it does not affect field shape --- the
+sign and reference subtraction are what matter physically.
+
+\section{Two-Channel Polarisation}
+
+A single custom-file laser block drives one transverse field component.
+To inject a field with independent control of \emph{both} transverse
+components at a boundary --- for example to synthesise an elliptically
+or circularly polarised drive, or any polarisation state not reducible
+to a single scalar profile --- add a second custom-file laser block on
+the \emph{same} boundary with \texttt{pol} rotated by $90^{\circ}$
+relative to the first. EPOCH's \texttt{pol} angle selects which pair of
+transverse field components (e.g.\ \texttt{Ey} and \texttt{Ez} for an
+\texttt{x\_min} laser) a laser block drives, so \texttt{pol = 0} and
+\texttt{pol = 90} address the two components independently, each from
+its own file:
+
+\begin{lstlisting}[style=deck]
+begin:laser
+  boundary = x_min
+  ...
+  pol = 0
+  profile_data_file = amplitude_H.dat   # drives Ey
+  ...
+end:laser
+
+begin:laser
+  boundary = x_min
+  ...
+  pol = 90
+  profile_data_file = amplitude_V.dat   # drives Ez
+  ...
+end:laser
+\end{lstlisting}
+
+The loaded amplitude and phase data live on the \texttt{laser\_block}
+instance itself rather than in a shared module-level variable, so each
+block keeps its own copy: the second block's file cannot silently
+overwrite or alias the first's, even when the two grids differ in shape
+or resolution. (Prior to this per-laser storage, a second custom-file
+block on the same boundary would incorrectly reuse the first block's
+already-loaded data.) The \texttt{cos}/\texttt{sin(pol\_angle)} channel
+split that routes each block to its transverse component is identical in
+every boundary routine of epoch2d and epoch3d, so the same two-block
+pattern works unchanged in 3D. (The two-channel configuration has been
+validated end-to-end in 2D; the 3D per-laser storage is the same design,
+built in from the start.)
+
+\section{Current Limitations}
+
+\begin{itemize}
+  \item \textbf{epoch1d} has no custom-profile support.
+  \item All file grids must be \textbf{uniform}; non-uniform coordinate
+    axes are not supported.
+  \item Memory: in \textbf{3D}, each MPI rank \emph{can} store only the
+    slab of the spatiotemporal array covering its own patch of the laser
+    boundary (plus a one-cell margin) rather than the full plane, with
+    loading streamed one time-slice at a time. This is now the default
+    behaviour for a static domain decomposition: \texttt{use\_pre\_balance}
+    defaults to \texttt{T} in epoch3d and triggers a one-off startup load
+    balance that can move a rank's local patch, so the file load for a
+    spatiotemporal laser is deferred past that rebalance and windowed
+    against the settled domain instead of being sized too early.
+    Per-rank cost is then roughly $(\text{local patch fraction}) \times
+    n_{\mathrm{tr1}} \times n_{\mathrm{tr2}} \times n_t \times 8$ bytes.
+    Continuous dynamic load balancing (\texttt{use\_balance = T}) keeps
+    the same per-rank saving for the whole run rather than only until
+    the first rebalance: the window is re-derived and the file reloaded
+    after every genuine mid-run redistribution, at the same per-event
+    cost as the initial load.
+
+    The full plane is still stored on every rank, unconditionally, for
+    a \emph{moving injection window} on a \texttt{y}/\texttt{z}-boundary
+    laser (its tr1 axis is $x$, which the window shifts as the
+    simulation window moves). This is deliberately retained rather than
+    windowed: unlike domain rebalancing, the window's motion is not
+    tied to a discrete, all-ranks-agree event such an update could hook
+    into, so a safe local-slab alternative does not exist yet for this
+    case. In \textbf{2D} the (small) full array is always broadcast to
+    every rank.
+\end{itemize}
+
+\end{document}

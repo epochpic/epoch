@@ -58,6 +58,18 @@ CONTAINS
     working_laser%use_profile_function = .TRUE.
     working_laser%use_omega_function = .FALSE.
 
+    ! Explicitly initialise custom-profile flags and filename for each new
+    ! laser block. Blank profile_data_file triggers the default filename
+    ! ('temporal_spatial_profile.dat' or 'spatial_profile.dat') at load time.
+    working_laser%use_custom_profile = .FALSE.
+    working_laser%use_spatiotemporal = .TRUE.
+    working_laser%profile_data_file = ' '
+
+    ! Phase-from-file defaults: disabled, with a blank filename that triggers
+    ! the default 'phase_profile.dat' at load time.
+    working_laser%use_phase_from_file = .FALSE.
+    working_laser%phase_data_file = ' '
+
   END SUBROUTINE laser_block_start
 
 
@@ -248,6 +260,80 @@ CONTAINS
 
     IF (str_cmp(element, 'id')) THEN
       working_laser%id = as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    ! Custom laser profile: read the amplitude (and optionally phase) from
+    ! an external binary file instead of a deck expression. See
+    ! src/shared_data.F90 for the laser_block fields these set.
+    IF (str_cmp(element, 'use_custom_profile')) THEN
+      working_laser%use_custom_profile = as_logical_print(value, element, &
+          errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'use_spatiotemporal_profile')) THEN
+      working_laser%use_spatiotemporal = as_logical_print(value, element, &
+          errcode)
+      RETURN
+    END IF
+
+    ! Parse the custom profile data filename. The value can be:
+    !   - A plain filename (e.g. 'TS01.dat'), resolved relative to data_dir
+    !   - An absolute path (e.g. '/home/user/profiles/TS01.dat'), used as-is
+    ! If omitted, the default filenames are used for backward compatibility.
+    IF (str_cmp(element, 'profile_data_file')) THEN
+      working_laser%profile_data_file = TRIM(ADJUSTL(value))
+      RETURN
+    END IF
+
+    ! Enable reading the spatiotemporal phase from file. When true, EPOCH
+    ! ignores any 'phase = ...' deck expression and instead interpolates the
+    ! phase from phase_data_file at every time step (handled in
+    ! laser_update_phase / custom_laser_phase).
+    IF (str_cmp(element, 'use_phase_from_file')) THEN
+      working_laser%use_phase_from_file = as_logical_print(value, &
+          element, errcode)
+      RETURN
+    END IF
+
+    ! Parse the phase data filename (same resolution rules as profile_data_file:
+    ! plain filenames resolve relative to data_dir, absolute paths used as-is).
+    ! If omitted, the default 'phase_profile.dat' is used.
+    IF (str_cmp(element, 'phase_data_file')) THEN
+      working_laser%phase_data_file = TRIM(ADJUSTL(value))
+      RETURN
+    END IF
+
+    ! Shape and bounds of the spatiotemporal profile/phase binary files
+    ! (use_spatiotemporal_profile = T only). These files carry no embedded
+    ! header (per EPOCH's documented binary-file convention), so the grid
+    ! must be declared here. The temporal extent reuses t_start/t_end rather
+    ! than a separate pair of elements, since the laser is only ever active
+    ! within that window anyway.
+    IF (str_cmp(element, 'n_t_points') .OR. str_cmp(element, 'n_t')) THEN
+      working_laser%n_t_points = as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'n_transverse_points') &
+        .OR. str_cmp(element, 'n_y')) THEN
+      working_laser%n_transverse_points = &
+          as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse_min') &
+        .OR. str_cmp(element, 'y_min')) THEN
+      working_laser%profile_transverse_min = &
+          as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse_max') &
+        .OR. str_cmp(element, 'y_max')) THEN
+      working_laser%profile_transverse_max = &
+          as_real_print(value, element, errcode)
       RETURN
     END IF
 
