@@ -1613,7 +1613,8 @@ CONTAINS
         current_i => current_j%next
         IF (ASSOCIATED(current_i)) current_j=>current_i%next
         ! Increment counter
-        N_scattered = N_scattered +1
+        N_scattered = N_scattered + 1
+        CYCLE
       END IF
 
       ! Now, collide these two macro-photons.
