@@ -57,7 +57,7 @@ CONTAINS
     REAL(num) :: part_ux, part_uy, part_uz
     REAL(num) :: part_q, part_mc, ipart_mc, part_weight, part_m
 #ifdef HC_PUSH
-    REAL(num) :: beta_x, beta_y, beta_z, beta2, beta_dot_u, alpha, sigma
+    REAL(num) :: beta_x, beta_y, beta_z, beta2, beta_dot_u, sigma
 #endif
 
     ! Used for particle probes (to see of probe conditions are satisfied)
@@ -424,10 +424,10 @@ CONTAINS
         ! Half timestep, then use Higuera-Cary push see
         ! https://aip.scitation.org/doi/10.1063/1.4979989
         gamma_rel = uxm**2 + uym**2 + uzm**2 + 1.0_num
-        alpha = 0.5_num * part_q * dt / part_m
-        beta_x = alpha * bx_part
-        beta_y = alpha * by_part
-        beta_z = alpha * bz_part
+        ! Interpolation weights are unnormalised; ccmratio includes fac.
+        beta_x = ccmratio * bx_part
+        beta_y = ccmratio * by_part
+        beta_z = ccmratio * bz_part
         beta2 = beta_x**2 + beta_y**2 + beta_z**2
         sigma = gamma_rel - beta2
         beta_dot_u = beta_x * uxm + beta_y * uym + beta_z * uzm
