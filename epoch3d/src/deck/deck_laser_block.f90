@@ -58,6 +58,19 @@ CONTAINS
     working_laser%use_profile_function = .TRUE.
     working_laser%use_omega_function = .FALSE.
 
+    ! Explicitly initialise custom-profile flags and filename for each new
+    ! laser block. Blank profile_data_file triggers the default filename
+    ! ('temporal_spatial_profile.dat' or 'spatial_profile.dat') at load
+    ! time.
+    working_laser%use_custom_profile = .FALSE.
+    working_laser%use_spatiotemporal = .FALSE.
+    working_laser%profile_data_file = ' '
+
+    ! Phase-from-file defaults: disabled, with a blank filename that
+    ! triggers the default 'phase_profile.dat' at load time.
+    working_laser%use_phase_from_file = .FALSE.
+    working_laser%phase_data_file = ' '
+
   END SUBROUTINE laser_block_start
 
 
@@ -251,6 +264,147 @@ CONTAINS
       RETURN
     END IF
 
+    ! Custom laser profile keywords (same interface as epoch2d).
+    IF (str_cmp(element, 'use_custom_profile')) THEN
+      working_laser%use_custom_profile = as_logical_print(value, element, &
+          errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'use_spatiotemporal_profile')) THEN
+      working_laser%use_spatiotemporal = as_logical_print(value, element, &
+          errcode)
+      RETURN
+    END IF
+
+    ! Parse the custom profile data filename. The value can be:
+    !   - A plain filename (e.g. 'beam_2d.dat'), resolved relative to data_dir
+    !   - An absolute path (e.g. '/home/user/profiles/beam_2d.dat'), used as-is
+    ! If omitted, the default filename is used for backward compatibility.
+    IF (str_cmp(element, 'profile_data_file')) THEN
+      working_laser%profile_data_file = TRIM(ADJUSTL(value))
+      RETURN
+    END IF
+
+    ! Enable reading the phase from file. When true, EPOCH ignores any
+    ! 'phase = ...' deck expression and instead takes the phase from
+    ! phase_data_file: re-interpolated at every time step on the
+    ! spatiotemporal path, or interpolated once at setup on the static
+    ! spatial path.
+    IF (str_cmp(element, 'use_phase_from_file')) THEN
+      working_laser%use_phase_from_file = as_logical_print(value, &
+          element, errcode)
+      RETURN
+    END IF
+
+    ! Parse the phase data filename (same resolution rules as
+    ! profile_data_file: plain filenames resolve relative to data_dir,
+    ! absolute paths used as-is). If omitted, the default
+    ! 'phase_profile.dat' is used.
+    IF (str_cmp(element, 'phase_data_file')) THEN
+      working_laser%phase_data_file = TRIM(ADJUSTL(value))
+      RETURN
+    END IF
+
+    ! Shape and bounds of the profile/phase binary files. The files carry
+    ! no embedded header (per EPOCH's documented binary-file convention),
+    ! so the grid must be declared here. The temporal extent reuses
+    ! t_start/t_end rather than a separate pair of elements, since the
+    ! laser is only ever active in that window anyway.
+    IF (str_cmp(element, 'n_t_points') .OR. str_cmp(element, 'n_t')) THEN
+      working_laser%n_t_points = as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'n_transverse1_points') &
+        .OR. str_cmp(element, 'n_tr1')) THEN
+      working_laser%n_tr1_points = as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'n_transverse2_points') &
+        .OR. str_cmp(element, 'n_tr2')) THEN
+      working_laser%n_tr2_points = as_integer_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse1_min') &
+        .OR. str_cmp(element, 'tr1_min')) THEN
+      working_laser%profile_tr1_min = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse1_max') &
+        .OR. str_cmp(element, 'tr1_max')) THEN
+      working_laser%profile_tr1_max = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse2_min') &
+        .OR. str_cmp(element, 'tr2_min')) THEN
+      working_laser%profile_tr2_min = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'profile_transverse2_max') &
+        .OR. str_cmp(element, 'tr2_max')) THEN
+      working_laser%profile_tr2_max = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    ! Axis-named aliases for the elements above (n_y_points, z_min, ...).
+    ! These resolve to transverse axis 1 or 2 according to the boundary
+    ! the laser is attached to:
+    !   x_min/x_max: tr1 = y, tr2 = z
+    !   y_min/y_max: tr1 = x, tr2 = z
+    !   z_min/z_max: tr1 = x, tr2 = y
+    ! Naming the propagation axis (e.g. n_x_points on an x_min laser) is
+    ! reported as an error.
+    IF (str_cmp(element, 'n_x_points') .OR. str_cmp(element, 'n_x')) THEN
+      CALL set_transverse_count('x', value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'n_y_points') .OR. str_cmp(element, 'n_y')) THEN
+      CALL set_transverse_count('y', value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'n_z_points') .OR. str_cmp(element, 'n_z')) THEN
+      CALL set_transverse_count('z', value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'x_min')) THEN
+      CALL set_transverse_bound('x', .TRUE., value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'x_max')) THEN
+      CALL set_transverse_bound('x', .FALSE., value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'y_min')) THEN
+      CALL set_transverse_bound('y', .TRUE., value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'y_max')) THEN
+      CALL set_transverse_bound('y', .FALSE., value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'z_min')) THEN
+      CALL set_transverse_bound('z', .TRUE., value, element, errcode)
+      RETURN
+    END IF
+
+    IF (str_cmp(element, 'z_max')) THEN
+      CALL set_transverse_bound('z', .FALSE., value, element, errcode)
+      RETURN
+    END IF
+
     errcode = c_err_unknown_element
 
   END FUNCTION laser_block_handle_element
@@ -296,5 +450,97 @@ CONTAINS
     END IF
 
   END FUNCTION laser_block_check
+
+
+
+  ! Map an axis-named alias to this laser's first or second transverse
+  ! axis, according to the boundary the laser is attached to. Returns 0
+  ! (and reports an error) if the axis is the boundary normal, which has
+  ! no transverse meaning.
+  FUNCTION transverse_axis_index(axis, element, errcode) RESULT(itr)
+
+    CHARACTER, INTENT(IN) :: axis
+    CHARACTER(*), INTENT(IN) :: element
+    INTEGER, INTENT(INOUT) :: errcode
+    INTEGER :: itr, io, iu
+
+    itr = 0
+    SELECT CASE(working_laser%boundary)
+      CASE(c_bd_x_min, c_bd_x_max)
+        IF (axis == 'y') itr = 1
+        IF (axis == 'z') itr = 2
+      CASE(c_bd_y_min, c_bd_y_max)
+        IF (axis == 'x') itr = 1
+        IF (axis == 'z') itr = 2
+      CASE(c_bd_z_min, c_bd_z_max)
+        IF (axis == 'x') itr = 1
+        IF (axis == 'y') itr = 2
+    END SELECT
+
+    IF (itr /= 0) RETURN
+
+    IF (rank == 0) THEN
+      DO iu = 1, nio_units ! Print to stdout and to file
+        io = io_units(iu)
+        WRITE(io,*) '*** ERROR ***'
+        WRITE(io,*) 'Input deck line number ', TRIM(deck_line_number)
+        WRITE(io,*) 'Element "', TRIM(element), '" of the block "laser" ', &
+            'names the propagation axis of this boundary.'
+        WRITE(io,*) 'Use the two transverse axes, or the boundary-agnostic ', &
+            'names (n_tr1/n_tr2, tr1_min etc.) instead.'
+      END DO
+    END IF
+    errcode = c_err_bad_value
+
+  END FUNCTION transverse_axis_index
+
+
+
+  ! Store an axis-named point-count alias (n_y_points etc.) into the
+  ! matching transverse slot for the current boundary.
+  SUBROUTINE set_transverse_count(axis, value, element, errcode)
+
+    CHARACTER, INTENT(IN) :: axis
+    CHARACTER(*), INTENT(IN) :: value, element
+    INTEGER, INTENT(INOUT) :: errcode
+    INTEGER :: itr
+
+    itr = transverse_axis_index(axis, element, errcode)
+    IF (itr == 1) THEN
+      working_laser%n_tr1_points = as_integer_print(value, element, errcode)
+    ELSE IF (itr == 2) THEN
+      working_laser%n_tr2_points = as_integer_print(value, element, errcode)
+    END IF
+
+  END SUBROUTINE set_transverse_count
+
+
+
+  ! Store an axis-named bound alias (y_min, z_max, ...) into the matching
+  ! transverse slot for the current boundary.
+  SUBROUTINE set_transverse_bound(axis, is_min, value, element, errcode)
+
+    CHARACTER, INTENT(IN) :: axis
+    LOGICAL, INTENT(IN) :: is_min
+    CHARACTER(*), INTENT(IN) :: value, element
+    INTEGER, INTENT(INOUT) :: errcode
+    INTEGER :: itr
+
+    itr = transverse_axis_index(axis, element, errcode)
+    IF (itr == 1) THEN
+      IF (is_min) THEN
+        working_laser%profile_tr1_min = as_real_print(value, element, errcode)
+      ELSE
+        working_laser%profile_tr1_max = as_real_print(value, element, errcode)
+      END IF
+    ELSE IF (itr == 2) THEN
+      IF (is_min) THEN
+        working_laser%profile_tr2_min = as_real_print(value, element, errcode)
+      ELSE
+        working_laser%profile_tr2_max = as_real_print(value, element, errcode)
+      END IF
+    END IF
+
+  END SUBROUTINE set_transverse_bound
 
 END MODULE deck_laser_block

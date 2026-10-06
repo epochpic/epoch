@@ -1,0 +1,66 @@
+begin:control
+  nx = 500
+  ny = 500
+
+  # Long enough for the 30fs custom pulse to enter and cross the domain
+  t_end = 60 * femto
+
+  # Size of domain
+  x_min = 0
+  x_max = 20 * micron
+  y_min = -10 * micron
+  y_max =  10 * micron
+
+  stdout_frequency = 10
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_min = periodic
+  bc_y_max = periodic
+end:boundaries
+
+
+# Custom laser profile injection: the amplitude and (optionally) phase are
+# read from raw binary files instead of an analytic deck expression. Run
+# generate_custom_laser_profile.py first to create amplitude.dat and
+# phase.dat; both must sit alongside this deck in the data directory.
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 1e22
+  lambda = 1.0 * micron
+  pol = 0
+
+  use_custom_profile = T
+  use_spatiotemporal_profile = T
+  profile_data_file = amplitude.dat
+
+  n_t = 50
+  n_y = 30
+  y_min = -10.0 * micron
+  y_max =  10.0 * micron
+  t_start = 0.0
+  t_end = 30e-15
+
+  use_phase_from_file = T
+  phase_data_file = phase.dat
+end:laser
+
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = 2 * femto
+
+  # Properties on grid
+  grid = always
+  ex = always
+  ey = always
+  ez = always
+  bx = always
+  by = always
+  bz = always
+end:output

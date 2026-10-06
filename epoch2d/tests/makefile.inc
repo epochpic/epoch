@@ -29,5 +29,5 @@ epoch2d.dat: input.deck $(EPOCH)
 	echo . | mpirun -n $(MPIPROCS) $(EPOCH)
 
 clean:
-	rm -rf *.png *.sdf deck.status epoch{1,2,3}d.dat *.visit
+	rm -rf *.png *.sdf deck.status epoch1d.dat epoch2d.dat epoch3d.dat *.visit
 	rm -rf __pycache__

@@ -263,6 +263,10 @@ CONTAINS
       old_comm = comm
       old_coordinates(:) = coordinates(:)
       CALL redistribute_domain
+
+      ! Keep any windowed spatiotemporal custom-laser slab valid
+      ! against the domain just redistributed above.
+      CALL reslab_custom_laser_files
     END IF
 
     IF (ALLOCATED(new_cell_x_min)) THEN

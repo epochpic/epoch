@@ -1,0 +1,41 @@
+begin:control
+  nx = 16
+  ny = 16
+  nz = 16
+  t_end = 1 * femto
+  x_min = -6 * micron
+  x_max = 6 * micron
+  y_min = -6 * micron
+  y_max = 6 * micron
+  z_min = -6 * micron
+  z_max = 6 * micron
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_min = open
+  bc_y_max = open
+  bc_z_min = open
+  bc_z_max = open
+end:boundaries
+
+
+begin:laser
+  boundary = x_min
+  lambda = 1.0 * micron
+  amp = 1.0e12
+  use_custom_profile = T
+  use_spatiotemporal_profile = T
+  profile_data_file = profile.dat
+  n_y_points = 8
+  n_z_points = 6
+  n_t_points = 5
+  y_min = -4 * micron
+  y_max = 4 * micron
+  z_min = -3 * micron
+  z_max = 3 * micron
+  t_start = 0
+  t_end = 1 * femto
+end:laser

@@ -52,6 +52,7 @@ PROGRAM pic
   USE calc_df
   USE injectors
   USE current_smooth
+  USE custom_laser
 #ifdef PHOTONS
   USE photons
 #endif
@@ -140,6 +141,12 @@ PROGRAM pic
 
   ! .TRUE. to over_ride balance fraction check
   IF (npart_global > 0 .AND. use_pre_balance) CALL balance_workload(.TRUE.)
+
+  ! Domain decomposition from startup load balancing is final from here
+  ! on (barring use_balance): load any custom laser spatiotemporal files
+  ! that custom_laser_spatial_setup deferred at deck-parse time, now
+  ! against the settled domain (see finalize_custom_laser_domain).
+  CALL finalize_custom_laser_domain
 
   IF (use_current_correction) CALL calc_initial_current
   CALL setup_bc_lists

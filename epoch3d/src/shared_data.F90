@@ -842,6 +842,58 @@ MODULE shared_data
 
     LOGICAL :: use_time_function, use_phase_function, use_profile_function
     LOGICAL :: use_omega_function
+
+    ! Custom laser profile flags (mirroring epoch2d interface).
+    ! use_custom_profile: read the amplitude profile (and optionally the
+    !   phase) from raw binary data files instead of deck expressions
+    ! use_spatiotemporal: if also TRUE, the file holds a spatiotemporal
+    !   profile E(tr1, tr2, t) sampled at every step; if FALSE, a static
+    !   spatial profile E(tr1, tr2) interpolated once at setup
+    ! profile_data_file: filename or absolute path to the data file; blank
+    !   means use the default ('temporal_spatial_profile.dat' or
+    !   'spatial_profile.dat'). Relative paths are resolved from data_dir.
+    LOGICAL :: use_custom_profile = .FALSE.
+    LOGICAL :: use_spatiotemporal = .FALSE.
+    CHARACTER(LEN=c_max_path_length) :: profile_data_file = ' '
+
+    ! Add-on for reading the phase profile from file (e.g. a LASY-generated
+    ! envelope phase). When use_phase_from_file is true, the deck
+    ! 'phase = ...' expression is ignored and laser%phase is taken from
+    ! phase_data_file instead (see custom_laser.f90).
+    LOGICAL :: use_phase_from_file = .FALSE.
+    ! Path to the phase data file. If blank, defaults to 'phase_profile.dat'.
+    ! Relative paths are resolved from data_dir; absolute paths used as-is.
+    CHARACTER(LEN=c_max_path_length) :: phase_data_file = ' '
+
+    ! Per-laser storage for the amplitude/phase data loaded from raw binary
+    ! files (access='stream', no embedded header, per EPOCH's documented
+    ! binary-file convention). Each laser block owns its own grid
+    ! declaration and data matrices, rather than sharing module-level
+    ! storage, so that two custom-file lasers on the same boundary (e.g.
+    ! one per transverse polarisation channel, selected via distinct
+    ! pol_angle values) load independent files instead of silently aliasing
+    ! the first laser's data.
+    !
+    ! tr1/tr2 are the two in-plane boundary coordinates:
+    !   x_min/x_max: tr1 = y, tr2 = z
+    !   y_min/y_max: tr1 = x, tr2 = z
+    !   z_min/z_max: tr1 = x, tr2 = y
+    ! The grid is assumed uniform (required by the O(1) index lookup in
+    ! custom_laser.f90) and is fully determined by these deck-declared
+    ! values; the temporal extent reuses t_start/t_end rather than a
+    ! separate pair of elements.
+    LOGICAL :: profile_loaded = .FALSE.
+    LOGICAL :: phase_loaded = .FALSE.
+    INTEGER :: n_t_points = 0
+    INTEGER :: n_tr1_points = 0
+    INTEGER :: n_tr2_points = 0
+    REAL(num) :: profile_tr1_min = 0.0_num
+    REAL(num) :: profile_tr1_max = 0.0_num
+    REAL(num) :: profile_tr2_min = 0.0_num
+    REAL(num) :: profile_tr2_max = 0.0_num
+    REAL(num), DIMENSION(:,:,:), POINTER :: file_field_matrix => NULL()
+    REAL(num), DIMENSION(:,:,:), POINTER :: file_phase_matrix => NULL()
+
     TYPE(primitive_stack) :: time_function, phase_function, profile_function
     TYPE(primitive_stack) :: omega_function
 
