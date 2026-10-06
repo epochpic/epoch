@@ -496,4 +496,78 @@ built in from the start.)
     every rank.
 \end{itemize}
 
+\section{Testing}
+
+Both epoch2d and epoch3d have an automated regression suite for this
+feature, integrated into the existing \texttt{tests/} nose/unittest
+framework already used by \texttt{scripts/run-tests.py} (the same
+runner CI exercises for the rest of the test suite). The suite lives
+at \texttt{tests/test\_custom\_laser.py}, with fixture decks and
+per-case working directories under \texttt{tests/custom\_laser/}. It
+began as a port of the ad hoc diagnostic scripts used to validate this
+feature during development, rewritten as proper assertions against
+empirically-derived thresholds rather than printed numbers for manual
+inspection.
+
+\subsection{Running the tests}
+
+From the repository root:
+
+\begin{lstlisting}[style=deck]
+./scripts/run-tests.py epoch3d custom_laser   # or epoch2d
+\end{lstlisting}
+
+builds \texttt{epoch<N>d} and runs the suite via \texttt{nose}.
+Equivalently, once built, from \texttt{epoch<N>d/}:
+
+\begin{lstlisting}[style=deck]
+nosetests tests.test_custom_laser
+\end{lstlisting}
+
+Each test class removes its own generated fixtures and simulation
+output (\texttt{*.sdf}, \texttt{deck.status}, \texttt{profile.dat},
+\ldots) in \texttt{tearDownClass}; set \texttt{NOCLEAN=1} in the
+environment to keep them for post-mortem inspection.
+\texttt{./scripts/run-tests.py epoch<N>d --clean} also works, via a
+\texttt{makefile} in \texttt{tests/custom\_laser/} that fans out to
+each case directory, matching the convention already used by
+\texttt{tests/maxwell\_solvers} and \texttt{tests/custom\_stencils}.
+
+\subsection{Coverage}
+
+\begin{itemize}
+  \item \textbf{y\_min boundary}: a y\_min-boundary spatiotemporal
+    laser (only x\_min/spatiotemporal and z\_min/static were covered
+    ad hoc before), including that boundary's own
+    source1$\to$field-component routing.
+  \item \textbf{Two-laser independence}: two custom-file blocks on
+    the same boundary with orthogonal \texttt{pol}, checking that
+    neither aliases the other's loaded data -- the bug that the
+    per-laser storage change fixed.
+  \item \textbf{Interpolation accuracy}: a separable
+    $g(t)\,h(\mathrm{transverse})$ profile lets the interpolated
+    field ratio be checked against the analytic ratio without
+    needing to know the carrier phase.
+  \item \textbf{Edge behaviour}: static (clamped) versus
+    spatiotemporal (zero-outside-bounds) sampling at and beyond the
+    declared file bounds.
+  \item \textbf{Phase override}: \texttt{use\_phase\_from\_file}
+    combined with, and without, an analytic \texttt{phase} tilt.
+  \item \textbf{File-size abort}: the byte-count check in
+    \texttt{load\_binary\_file} rejects a profile file whose size
+    does not match the declared grid, for each declared dimension
+    independently.
+  \item \textbf{Alias errors} (epoch3d only): the propagation-axis
+    self-alias check on all four transverse boundaries
+    (\texttt{y\_min}, \texttt{y\_max}, \texttt{z\_min},
+    \texttt{z\_max}), not just \texttt{x\_min}.
+  \item \textbf{Dynamic balance re-slab} (epoch3d only): re-derives
+    and reloads the per-rank file-slab window under
+    \texttt{use\_balance} after a runtime domain redistribution.
+\end{itemize}
+
+epoch3d runs 13 tests across these groups, epoch2d runs 10 (it has no
+alias-error or dynamic-balance-re-slab groups, since neither feature
+exists in 2D). epoch1d has no custom-profile support and is untested.
+
 \end{document}

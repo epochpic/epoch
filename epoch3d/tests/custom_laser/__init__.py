@@ -13,21 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# this makefile should be included into each makefile in the examples folder.
-# its a template adding some useful targets. only in exceptions those targets
-# can be changed inside the actual makefile for the example. this ensures,
-# that all examples work the same, so they can be used for testing.
-
-EPOCH?=../../bin/epoch2d
-# MPRIPROCS can be set as an environmental variable, using
-# $export MPRIPROCS=8
-MPIPROCS?=2
-
-default: epoch2d.dat
-
-epoch2d.dat: input.deck $(EPOCH)
-	echo . | mpirun -n $(MPIPROCS) $(EPOCH)
-
-clean:
-	rm -rf *.png *.sdf deck.status epoch1d.dat epoch2d.dat epoch3d.dat *.visit
-	rm -rf __pycache__
+# Marker only: makes 'custom_laser' importable as tests.custom_laser so
+# ../test_custom_laser.py can 'from .custom_laser import common'. The
+# case subdirectories alongside common.py are working directories, not
+# Python modules.

@@ -1,0 +1,64 @@
+begin:control
+  nx = 16
+  ny = 16
+  nz = 8
+  nprocx = 1
+  nprocy = 2
+  nprocz = 1
+  t_end = 25 * femto
+  x_min = -4 * micron
+  x_max = 4 * micron
+  y_min = -4 * micron
+  y_max = 4 * micron
+  z_min = -2 * micron
+  z_max = 2 * micron
+  stdout_frequency = 1
+  dlb_threshold = 0.9
+  dlb_maximum_interval = 4
+  dlb_force_interval = 3
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_min = periodic
+  bc_y_max = periodic
+  bc_z_min = periodic
+  bc_z_max = periodic
+end:boundaries
+
+
+begin:laser
+  boundary = x_min
+  lambda = 1.0 * micron
+  amp = 1.0e10
+  use_custom_profile = T
+  use_spatiotemporal_profile = T
+  profile_data_file = profile.dat
+  n_y_points = 6
+  n_z_points = 4
+  n_t_points = 4
+  y_min = -4 * micron
+  y_max = 4 * micron
+  z_min = -2 * micron
+  z_max = 2 * micron
+  t_start = 0
+  t_end = 5 * femto
+end:laser
+
+
+begin:species
+  name = Bunch
+  charge = -1
+  mass = 1.0
+  drift_py = 0.99 * me * c
+  number_density = if((abs(y) lt 0.5 * micron), 1.0e24, 0.0)
+  nparticles = 20000
+end:species
+
+
+begin:output
+  dt_snapshot = 25 * femto
+  grid = never
+end:output

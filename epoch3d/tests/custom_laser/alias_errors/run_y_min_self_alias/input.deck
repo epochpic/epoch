@@ -1,0 +1,30 @@
+begin:control
+  nx = 8
+  ny = 8
+  nz = 8
+  t_end = 1 * femto
+  x_min = -1 * micron
+  x_max = 1 * micron
+  y_min = -1 * micron
+  y_max = 1 * micron
+  z_min = -1 * micron
+  z_max = 1 * micron
+end:control
+
+
+begin:boundaries
+  bc_x_min = open
+  bc_x_max = open
+  bc_y_min = simple_laser
+  bc_y_max = open
+  bc_z_min = open
+  bc_z_max = open
+end:boundaries
+
+
+begin:laser
+  boundary = y_min
+  lambda = 1.0 * micron
+  amp = 1.0e12
+  y_min = -1 * micron
+end:laser

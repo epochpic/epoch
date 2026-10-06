@@ -1,0 +1,49 @@
+begin:control
+  nx = 32
+  ny = 32
+  nz = 32
+  t_end = 6.5 * femto
+  x_min = -6 * micron
+  x_max = 6 * micron
+  y_min = -6 * micron
+  y_max = 6 * micron
+  z_min = -6 * micron
+  z_max = 6 * micron
+  stdout_frequency = 50
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_min = open
+  bc_y_max = open
+  bc_z_min = open
+  bc_z_max = open
+end:boundaries
+
+
+begin:laser
+  boundary = x_min
+  pol = 0
+  lambda = 1.0 * micron
+  amp = 1.0e12
+  use_custom_profile = T
+  profile_data_file = spatial_profile.dat
+  n_y_points = 6
+  n_z_points = 6
+  y_min = -4 * micron
+  y_max = 4 * micron
+  z_min = -4 * micron
+  z_max = 4 * micron
+  use_phase_from_file = T
+  phase_data_file = phase_profile.dat
+  phase = 50.0 * y / micron
+end:laser
+
+
+begin:output
+  dt_snapshot = 2.5 * femto
+  grid = always
+  ey = always
+end:output
