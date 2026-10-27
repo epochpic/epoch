@@ -101,6 +101,7 @@ CONTAINS
 
     laser_inject_local = 0.0_num
     laser_absorb_local = 0.0_num
+    field_energy_lost_local = 0.0_num
     old_elapsed_time = 0.0_num
     window_offset = 0.0_num
 
@@ -207,6 +208,13 @@ CONTAINS
         io_block_list(i)%dumpmask(c_dump_cpml_psi_byx) = c_io_never
         io_block_list(i)%dumpmask(c_dump_cpml_psi_bzx) = c_io_never
       END DO
+    END IF
+
+    IF (dump_field_energy_lost .AND. cpml_boundaries .AND. rank == 0) THEN
+      PRINT*, '*** WARNING ***'
+      PRINT*, 'The "field_energy_lost" diagnostic only measures energy leaving'
+      PRINT*, 'through simple_laser and simple_outflow boundaries. Energy'
+      PRINT*, 'absorbed by CPML boundaries is not included.'
     END IF
 
   END SUBROUTINE after_deck_last
@@ -1070,6 +1078,8 @@ CONTAINS
           END DO
         ELSE IF (str_cmp(block_id, 'elapsed_time')) THEN
           CALL sdf_read_srl(sdf_handle, old_elapsed_time)
+        ELSE IF (block_id(1:18) == 'field_energy_lost/') THEN
+          CALL read_field_energy_lost(sdf_handle, block_id)
         END IF
       CASE(c_blocktype_plain_mesh)
         IF (str_cmp(block_id, 'grid') .OR. str_cmp(block_id, 'grid_full')) THEN
@@ -1441,9 +1451,30 @@ CONTAINS
 
 
 
+  SUBROUTINE read_field_energy_lost(sdf_handle, block_id_in)
+
+    TYPE(sdf_file_handle), INTENT(IN) :: sdf_handle
+    CHARACTER(LEN=*), INTENT(IN) :: block_id_in
+    REAL(num) :: energy_lost
+    INTEGER :: i
+    CHARACTER(LEN=5), DIMENSION(6) :: direction_name = &
+        (/'x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'/)
+
+    DO i = 1, 2*c_ndims
+      IF (str_cmp(block_id_in, 'field_energy_lost/' // direction_name(i))) THEN
+        CALL sdf_read_srl(sdf_handle, energy_lost)
+        ! The stored value is a global sum, so only keep it on one rank
+        IF (rank == 0) field_energy_lost_local(i) = energy_lost
+        EXIT
+      END IF
+    END DO
+
+  END SUBROUTINE read_field_energy_lost
+
+
+  
   ! Read injector depths from restart and initialise
   ! Requires the same injectors defined from the deck
-
   SUBROUTINE read_injector_depths(sdf_handle, block_id_in, ndims, boundary)
 
     TYPE(sdf_file_handle), INTENT(INOUT) :: sdf_handle

@@ -835,6 +835,9 @@ CONTAINS
     ! Now have E(t+dt/2), do boundary conditions on E
     CALL efield_bcs
 
+    ! Energy lost through boundaries using E(t+dt/2) and B(t)
+    IF (dump_field_energy_lost) CALL calc_field_energy_lost
+
     ! Update B field to t+dt/2 using E(t+dt/2)
     CALL update_b_field
 
@@ -865,10 +868,65 @@ CONTAINS
 
     CALL bfield_final_bcs
 
+    IF (dump_field_energy_lost) CALL calc_field_energy_lost
+
     CALL update_e_field
 
     CALL efield_bcs
 
   END SUBROUTINE update_eb_fields_final
+
+
+
+  ! Returns the electromagnetic power leaving the domain through boundary
+  FUNCTION boundary_field_power(bd) RESULT(power)
+
+    INTEGER, INTENT(IN) :: bd
+    REAL(num) :: power
+
+    SELECT CASE(bd)
+      CASE(c_bd_x_min)
+        power = -dy*dz * SUM(ey(1,1:ny,1:nz)  * bz(0,0:ny,0:nz)  - ez(1,1:ny,1:nz)  * by(0,0:ny,0:nz))
+      CASE(c_bd_x_max)
+        power =  dy*dz * SUM(ey(nx,1:ny,1:nz) * bz(nx,0:ny,0:nz) - ez(nx,1:ny,1:nz) * by(nx,0:ny,0:nz))
+      CASE(c_bd_y_min)
+        power = -dx*dz * SUM(ez(1:nx,1,1:nz)  * bx(0:nx,0,0:nz)  - ex(1:nx,1,1:nz)  * bz(0:nx,0,0:nz))
+      CASE(c_bd_y_max)
+        power =  dx*dz * SUM(ez(1:nx,ny,1:nz) * bx(0:nx,ny,0:nz) - ex(1:nx,ny,1:nz) * bz(0:nx,ny,0:nz))
+      CASE(c_bd_z_min)
+        power = -dx*dy * SUM(ex(1:nx,1:ny,1)  * by(0:nx,0:ny,0)  - ey(1:nx,1:ny,1)  * bx(0:nx,0:ny,0))
+      CASE(c_bd_z_max)
+        power =  dx*dy * SUM(ex(1:nx,1:ny,nz) * by(0:nx,0:ny,nz) - ey(1:nx,1:ny,nz) * bx(0:nx,0:ny,nz))
+      CASE DEFAULT
+        power = 0.0_num
+    END SELECT
+
+    ! Negative values represent field energy entering the simulation, since we
+    ! only want to track energy lost, set these to 0.
+    IF (power < 0.0_num) THEN
+      power = 0.0_num
+    END IF
+
+    power = power / mu0
+
+  END FUNCTION boundary_field_power
+
+
+
+  ! Accumulates the net field energy leaving the domain through each
+  ! simple_laser or simple_outflow boundary over half a timestep.
+  SUBROUTINE calc_field_energy_lost
+
+    INTEGER :: i
+
+    DO i = 1, 2*c_ndims
+      IF (.NOT.is_boundary(i)) CYCLE
+      IF (bc_field(i) /= c_bc_simple_laser &
+          .AND. bc_field(i) /= c_bc_simple_outflow) CYCLE
+      field_energy_lost_local(i) = field_energy_lost_local(i) &
+          + 0.5_num * dt * boundary_field_power(i)
+    END DO
+
+  END SUBROUTINE calc_field_energy_lost
 
 END MODULE fields

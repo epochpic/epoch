@@ -48,6 +48,7 @@ CONTAINS
 
     track_ejected_particles = .FALSE.
     dump_absorption = .FALSE.
+    dump_field_energy_lost = .FALSE.
     averaged_var_block = 0
     new_style_io_block = .FALSE.
     n_io_blocks = 0
@@ -246,6 +247,10 @@ CONTAINS
     IF (io_block%dumpmask(c_dump_absorption) /= c_io_never) THEN
       dump_absorption = .TRUE.
     END IF
+
+    mask = io_block%dumpmask(c_dump_field_energy_lost)
+    IF (mask /= c_io_none .AND. IAND(mask,c_io_never) == 0) &
+      dump_field_energy_lost = .TRUE.
 
     IF (.NOT. got_name) THEN
       IF (new_style_io_block) THEN
@@ -743,6 +748,9 @@ CONTAINS
 
     ELSE IF (str_cmp(element, 'coulomb_logarithm')) THEN
       elementselected = c_dump_cou_log
+
+    ELSE IF (str_cmp(element, 'field_energy_lost')) THEN
+      elementselected = c_dump_field_energy_lost
 
     ELSE
       got_element = .FALSE.

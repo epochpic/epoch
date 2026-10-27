@@ -981,7 +981,13 @@ CONTAINS
             'Absorption/Fraction of Laser Energy Absorbed (%)', laser_absorbed)
       END IF
 
-      ! close the file
+      ! Always include in restart dumps so that the running totals are kept
+      IF (IAND(iomask(c_dump_field_energy_lost), code) /= 0 &
+          .OR. (restart_flag .AND. dump_field_energy_lost)) THEN
+        CALL write_field_energy_lost(sdf_handle)
+      END IF
+
+      ! Close the file
       CALL sdf_close(sdf_handle)
 
       IF (rank == 0) THEN
@@ -1068,6 +1074,31 @@ CONTAINS
   END SUBROUTINE write_laser_phases
 
 
+
+  SUBROUTINE write_field_energy_lost(sdf_handle)
+
+    TYPE(sdf_file_handle), INTENT(IN) :: sdf_handle
+    REAL(num), DIMENSION(2*c_ndims) :: field_energy_lost
+    INTEGER :: i
+    CHARACTER(LEN=5), DIMENSION(6) :: direction_name = &
+        (/'x_min', 'x_max', 'y_min', 'y_max', 'z_min', 'z_max'/)
+
+    CALL MPI_ALLREDUCE(field_energy_lost_local, field_energy_lost, &
+        2*c_ndims, mpireal, MPI_SUM, comm, errcode)
+
+    DO i = 1, 2*c_ndims
+      CALL sdf_write_srl(sdf_handle, &
+          'field_energy_lost/' // direction_name(i), &
+          'Field Energy Lost/' // direction_name(i) // ' (J)', &
+          field_energy_lost(i))
+    END DO
+
+    CALL sdf_write_srl(sdf_handle, 'total_field_energy_lost', &
+        'Total Field Energy Lost (J)', SUM(field_energy_lost))
+
+  END SUBROUTINE write_field_energy_lost
+
+  
 
   SUBROUTINE write_injector_depths(sdf_handle, boundary)
 
