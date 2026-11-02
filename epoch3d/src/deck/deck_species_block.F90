@@ -361,7 +361,7 @@ CONTAINS
     ! If using ionise, this can restrict the number of secondary particles to
     ! consider
     IF (str_cmp(element, 'unique_electron_species')) THEN
-      unique_electrons = .TRUE.
+      unique_electrons = as_logical_print(value, element, errcode)
       RETURN
     END IF
 
